@@ -1,4 +1,4 @@
-use crate::{voxel, Extent2d, Extent3d, Offset3d, Voxel};
+use crate::{graphics, voxel, Extent2d, Extent3d, Offset3d, Voxel};
 use winit::{
     dpi::PhysicalPosition,
     error::OsError,
@@ -23,18 +23,25 @@ pub struct Settings {
 #[derive(Debug)]
 pub enum Error {
     CreateWindowFailed(OsError),
+    Graphics(graphics::Error),
 }
 
 pub struct Game {
     settings: Settings,
+    _graphics: graphics::Context,
     world: voxel::World,
 }
 
 impl Game {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings) -> Result<Self, Error> {
+        let graphics = graphics::Context::new().map_err(|error| Error::Graphics(error))?;
         let mut world = voxel::World::new(settings.world_size);
         world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(0));
-        Self { settings, world }
+        Ok(Self {
+            settings,
+            world,
+            _graphics: graphics,
+        })
     }
 
     pub fn run(self) -> Result<(), Error> {
