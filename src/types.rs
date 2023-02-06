@@ -10,6 +10,16 @@ macro_rules! impl_unit {
     };
 }
 
+macro_rules! impl_partial_eq_vector {
+    ($t:ident{$($m:ident),*}) => {
+        impl<T: PartialEq + Unit> PartialEq for $t<T> {
+            fn eq(&self, other: &Self) -> bool {
+                $(self.$m == other.$m)&&*
+            }
+        }
+    };
+}
+
 macro_rules! define_vector_struct {
     ($(#[doc=$doc:expr])? $(#[derive($($der:ident),*)])? $t:ident{$($m:ident),*}) => {
         $(#[doc=$doc])?
@@ -47,6 +57,8 @@ macro_rules! define_offset {
         impl<T: Unit> $t<T> {
             define_vector_fn_new!($t{$($m),*});
         }
+
+        impl_partial_eq_vector!($t{$($m),*});
     };
 }
 
@@ -64,6 +76,8 @@ macro_rules! define_extent {
                 Self::one()
             }
         }
+
+        impl_partial_eq_vector!($t{$($m),*});
     };
 }
 
@@ -74,6 +88,9 @@ pub trait Unit: Copy + Default {
 impl_unit!(i32, 0);
 impl_unit!(u32, 0);
 impl_unit!(f32, 0.0);
+impl_unit!(i64, 0);
+impl_unit!(u64, 0);
+impl_unit!(f64, 0.0);
 
 define_offset!(
     #[doc = "A 2d offset."]

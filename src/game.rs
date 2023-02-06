@@ -1,4 +1,4 @@
-use crate::Extent2d;
+use crate::{voxel, Extent2d, Extent3d, Offset3d, Voxel};
 use winit::{
     dpi::PhysicalPosition,
     error::OsError,
@@ -16,6 +16,8 @@ pub enum WindowMode {
 pub struct Settings {
     pub window_mode: WindowMode,
     pub vsync: bool,
+
+    pub world_size: Extent3d<u32>,
 }
 
 #[derive(Debug)]
@@ -25,11 +27,14 @@ pub enum Error {
 
 pub struct Game {
     settings: Settings,
+    world: voxel::World,
 }
 
 impl Game {
     pub fn new(settings: Settings) -> Self {
-        Self { settings }
+        let mut world = voxel::World::new(settings.world_size);
+        world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(0));
+        Self { settings, world }
     }
 
     pub fn run(self) -> Result<(), Error> {
@@ -70,7 +75,9 @@ impl Game {
                 }
                 _ => {}
             },
-            Event::RedrawRequested(window_id) if window_id == window.id() => {}
+            Event::RedrawRequested(window_id) if window_id == window.id() => {
+                for (_, _) in self.world.iter() {}
+            }
             _ => {}
         });
     }
