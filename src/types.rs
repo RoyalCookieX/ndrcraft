@@ -83,14 +83,17 @@ macro_rules! define_extent {
 
 pub trait Unit: Copy + Default {
     fn one() -> Self;
+    fn zero() -> Self {
+        Self::default()
+    }
 }
 
-impl_unit!(i32, 0);
-impl_unit!(u32, 0);
-impl_unit!(f32, 0.0);
-impl_unit!(i64, 0);
-impl_unit!(u64, 0);
-impl_unit!(f64, 0.0);
+impl_unit!(i32, 1);
+impl_unit!(u32, 1);
+impl_unit!(f32, 1.0);
+impl_unit!(i64, 1);
+impl_unit!(u64, 1);
+impl_unit!(f64, 1.0);
 
 define_offset!(
     #[doc = "A 2d offset."]
