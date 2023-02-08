@@ -1,3 +1,5 @@
+pub use cgmath::*;
+
 use std::{mem, slice};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 
@@ -207,6 +209,9 @@ macro_rules! impl_bytes {
     ($t:ident) => {
         unsafe impl Bytes for $t {}
     };
+    ($t:ident<$($generic:ident),*>) => {
+        unsafe impl<$($generic: Unit,)*> Bytes for $t<$($generic,)*> {}
+    };
 }
 
 pub unsafe trait Bytes: Copy + Sized {
@@ -234,6 +239,13 @@ impl_bytes!(i128);
 impl_bytes!(u128);
 impl_bytes!(isize);
 impl_bytes!(usize);
+impl_bytes!(Deg<T>);
+impl_bytes!(Rad<T>);
+impl_bytes!(Vector2<T>);
+impl_bytes!(Vector3<T>);
+impl_bytes!(Vector4<T>);
+impl_bytes!(Quaternion<T>);
+impl_bytes!(Matrix4<T>);
 
 unsafe impl<T: Bytes> Bytes for &[T] {
     fn as_bytes(&self) -> &[u8] {
