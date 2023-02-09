@@ -1,5 +1,7 @@
+pub mod mesh;
 pub mod texture;
 
+pub use mesh::Mesh;
 pub use texture::Texture;
 
 use pollster::block_on;
@@ -20,6 +22,7 @@ macro_rules! impl_from_error {
 pub enum Error {
     RequestAdapterFailed,
     RequestDeviceFailed(wgpu::RequestDeviceError),
+    Mesh(mesh::Error),
     Texture(texture::Error),
 }
 
@@ -61,6 +64,10 @@ impl Context {
         })
     }
 
+    pub fn create_mesh(&self, vertices: &[mesh::Vertex]) -> Result<Mesh, Error> {
+        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
+    }
+
     pub fn create_texture(
         &self,
         size: texture::Size,
@@ -90,6 +97,32 @@ mod tests {
             let Err(error) = $expr else { panic!("value is valid") };
             assert_eq!(error, $err);
         };
+    }
+
+    #[test]
+    fn mesh_test() {
+        let graphics = Context::new().expect("valid context");
+        let vertices = [
+            mesh::Vertex {
+                position: Vector3::new(-0.5, -0.5, -1.0),
+                color: Vector4::new(1.0, 0.0, 0.0, 1.0),
+                uv: Vector2::new(0.0, 0.0),
+            },
+            mesh::Vertex {
+                position: Vector3::new(0.0, 0.5, -1.0),
+                color: Vector4::new(0.0, 1.0, 0.0, 1.0),
+                uv: Vector2::new(0.5, 1.0),
+            },
+            mesh::Vertex {
+                position: Vector3::new(0.5, -0.5, -1.0),
+                color: Vector4::new(0.0, 0.0, 1.0, 1.0),
+                uv: Vector2::new(1.0, 0.0),
+            },
+        ];
+        assert_err!(graphics.create_mesh(&[]) => Error::Mesh(mesh::Error::VerticesInvalid));
+        let mut mesh = graphics.create_mesh(&vertices).expect("valid mesh");
+        mesh.vertices[0].color = Vector4::new(0.5, 0.1, 0.9, 1.0);
+        mesh.flush();
     }
 
     #[test]
