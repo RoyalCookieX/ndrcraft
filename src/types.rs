@@ -1,7 +1,7 @@
 pub use cgmath::*;
 
 use std::{mem, slice};
-use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 
 macro_rules! impl_unit {
     ($t:ident,$value:expr) => {
@@ -115,9 +115,15 @@ impl<T: Unit> From<Extent2d<T>> for Offset2d<T> {
     }
 }
 
-impl From<Offset2d<i32>> for Position {
+impl From<PhysicalPosition<i32>> for Offset2d<i32> {
+    fn from(value: PhysicalPosition<i32>) -> Self {
+        Self::new(value.x, value.y)
+    }
+}
+
+impl From<Offset2d<i32>> for PhysicalPosition<i32> {
     fn from(value: Offset2d<i32>) -> Self {
-        Self::Physical(PhysicalPosition::new(value.x, value.y))
+        Self::new(value.x, value.y)
     }
 }
 
@@ -160,9 +166,15 @@ impl<T: Unit> From<Offset2d<T>> for Extent2d<T> {
     }
 }
 
-impl From<Extent2d<u32>> for Size {
+impl From<PhysicalSize<u32>> for Extent2d<u32> {
+    fn from(value: PhysicalSize<u32>) -> Self {
+        Self::new(value.width, value.height)
+    }
+}
+
+impl From<Extent2d<u32>> for PhysicalSize<u32> {
     fn from(value: Extent2d<u32>) -> Self {
-        Self::Physical(PhysicalSize::new(value.width, value.height))
+        Self::new(value.width, value.height)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{graphics, voxel, Extent2d, Extent3d, Offset3d, Voxel};
 use winit::{
-    dpi::PhysicalPosition,
+    dpi::{PhysicalPosition, PhysicalSize},
     error::OsError,
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -50,7 +50,7 @@ impl Game {
         let window = {
             let mut builder = WindowBuilder::new().with_title("NdrCraft");
             builder = match self.settings.window_mode {
-                WindowMode::Windowed(size) => builder.with_inner_size(size),
+                WindowMode::Windowed(size) => builder.with_inner_size(PhysicalSize::from(size)),
             };
             builder.build(&event_loop)
         }
