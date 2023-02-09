@@ -28,7 +28,7 @@ pub enum Error {
 
 pub struct Game {
     settings: Settings,
-    _graphics: graphics::Context,
+    graphics: graphics::Context,
     world: voxel::World,
 }
 
@@ -39,8 +39,8 @@ impl Game {
         world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(0));
         Ok(Self {
             settings,
+            graphics,
             world,
-            _graphics: graphics,
         })
     }
 
@@ -82,9 +82,7 @@ impl Game {
                 }
                 _ => {}
             },
-            Event::RedrawRequested(window_id) if window_id == window.id() => {
-                for (_, _) in self.world.iter() {}
-            }
+            Event::RedrawRequested(window_id) if window_id == window.id() => {}
             _ => {}
         });
     }

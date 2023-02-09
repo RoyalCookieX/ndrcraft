@@ -1,3 +1,4 @@
+use std::{mem, slice};
 use winit::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 
 macro_rules! impl_unit {
@@ -69,6 +70,9 @@ macro_rules! define_extent {
         impl<T: Unit> $t<T> {
             define_vector_fn_new!($t{$($m),*});
             define_vector_fn_one!($t{$($m),*});
+            pub fn is_valid(&self) -> bool {
+                $(self.$m > T::zero())&&*
+            }
         }
 
         impl<T: Unit> Default for $t<T> {
@@ -81,7 +85,7 @@ macro_rules! define_extent {
     };
 }
 
-pub trait Unit: Copy + Default {
+pub trait Unit: Copy + Default + PartialOrd {
     fn one() -> Self;
     fn zero() -> Self {
         Self::default()
@@ -130,6 +134,16 @@ impl<T: Unit> From<Extent3d<T>> for Offset3d<T> {
     }
 }
 
+impl From<Offset3d<u32>> for wgpu::Origin3d {
+    fn from(value: Offset3d<u32>) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            z: value.z,
+        }
+    }
+}
+
 define_extent!(
     #[doc = "A 2d extent."]
     Extent2d { width, height }
@@ -166,5 +180,66 @@ impl<T: Unit> From<Offset3d<T>> for Extent3d<T> {
             height: value.y,
             depth: value.z,
         }
+    }
+}
+
+impl From<wgpu::Extent3d> for Extent3d<u32> {
+    fn from(value: wgpu::Extent3d) -> Self {
+        Self {
+            width: value.width,
+            height: value.height,
+            depth: value.depth_or_array_layers,
+        }
+    }
+}
+
+impl From<Extent3d<u32>> for wgpu::Extent3d {
+    fn from(value: Extent3d<u32>) -> Self {
+        Self {
+            width: value.width,
+            height: value.height,
+            depth_or_array_layers: value.depth,
+        }
+    }
+}
+
+macro_rules! impl_bytes {
+    ($t:ident) => {
+        unsafe impl Bytes for $t {}
+    };
+}
+
+pub unsafe trait Bytes: Copy + Sized {
+    fn as_bytes(&self) -> &[u8] {
+        let ptr = self as *const Self;
+        let data = ptr as *const u8;
+        let len = mem::size_of_val(self);
+        unsafe { slice::from_raw_parts(data, len) }
+    }
+}
+
+impl_bytes!(bool);
+impl_bytes!(i8);
+impl_bytes!(u8);
+impl_bytes!(char);
+impl_bytes!(i16);
+impl_bytes!(u16);
+impl_bytes!(i32);
+impl_bytes!(u32);
+impl_bytes!(f32);
+impl_bytes!(i64);
+impl_bytes!(u64);
+impl_bytes!(f64);
+impl_bytes!(i128);
+impl_bytes!(u128);
+impl_bytes!(isize);
+impl_bytes!(usize);
+
+unsafe impl<T: Bytes> Bytes for &[T] {
+    fn as_bytes(&self) -> &[u8] {
+        let ptr = self.as_ptr();
+        let data = ptr as *const u8;
+        let len = mem::size_of::<T>() * self.len();
+        unsafe { slice::from_raw_parts(data, len) }
     }
 }
