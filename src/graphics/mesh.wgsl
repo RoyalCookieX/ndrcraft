@@ -10,10 +10,12 @@ struct VertFrag {
     @location(1) uv: vec2<f32>,
 }
 
+var<push_constant> model: mat4x4<f32>;
+
 @vertex
 fn vs_main(vert: Vert) -> VertFrag {
     var vert_frag: VertFrag;
-    vert_frag.out_position = vec4<f32>(vert.position, 1.0);
+    vert_frag.out_position = model * vec4<f32>(vert.position, 1.0);
     vert_frag.color = vert.color;
     vert_frag.uv = vert.uv;
     return vert_frag;

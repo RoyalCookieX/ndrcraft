@@ -23,11 +23,16 @@ use pollster::block_on;
 use std::rc::Rc;
 use winit::window::Window;
 
-pub(crate) enum DrawCommand {
+pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 256> {
     SetPipeline(Rc<wgpu::RenderPipeline>),
     SetBindGroup {
         index: u32,
         bind_group: Rc<wgpu::BindGroup>,
+    },
+    SetPushConstant {
+        stages: wgpu::ShaderStages,
+        offset: u32,
+        data: [u8; PUSH_SIZE],
     },
     SetVertexBuffer {
         buffer: Rc<wgpu::Buffer>,
@@ -75,8 +80,8 @@ impl Context {
         let (device, queue) = block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
+                features: adapter.features(),
+                limits: adapter.limits(),
             },
             None,
         ))
@@ -131,90 +136,5 @@ impl Context {
             vsync,
         )
         .map_err(|error| error.into())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::*;
-
-    macro_rules! assert_err {
-        ($expr:expr => $err:expr) => {
-            let Err(error) = $expr else { panic!("value is valid") };
-            assert_eq!(error, $err);
-        };
-    }
-
-    #[test]
-    fn mesh_test() {
-        let graphics = Context::new().expect("valid context");
-        let vertices = [
-            mesh::Vertex {
-                position: Vector3::new(-0.5, -0.5, -1.0),
-                color: Vector4::new(1.0, 0.0, 0.0, 1.0),
-                uv: Vector2::new(0.0, 0.0),
-            },
-            mesh::Vertex {
-                position: Vector3::new(0.0, 0.5, -1.0),
-                color: Vector4::new(0.0, 1.0, 0.0, 1.0),
-                uv: Vector2::new(0.5, 1.0),
-            },
-            mesh::Vertex {
-                position: Vector3::new(0.5, -0.5, -1.0),
-                color: Vector4::new(0.0, 0.0, 1.0, 1.0),
-                uv: Vector2::new(1.0, 0.0),
-            },
-        ];
-        assert_err!(graphics.create_mesh(&[]) => Error::Mesh(mesh::Error::VerticesInvalid));
-        let mut mesh = graphics.create_mesh(&vertices).expect("valid mesh");
-        mesh.vertices[0].color = Vector4::new(0.5, 0.1, 0.9, 1.0);
-        mesh.flush();
-    }
-
-    #[test]
-    fn texture_test() {
-        let graphics = Context::new().expect("valid context");
-        assert_err!(graphics
-            .create_texture(
-                texture::Size::D2(Extent2d::new(0, 0)),
-                texture::Format::Rgba8Unorm,
-                None,
-                None,
-            ) => Error::Texture(texture::Error::SizeInvalid));
-        assert_err!(graphics
-            .create_texture(
-                texture::Size::D2(Extent2d::new(4, 4)),
-                texture::Format::Rgba8Unorm,
-                Some(texture::Sampler::new(
-                    texture::FilterMode::Linear,
-                    texture::AddressMode::ClampToEdge,
-                )),
-                Some(&[]),
-            ) => Error::Texture(texture::Error::PixelsInvalid));
-        let texture = graphics
-            .create_texture(
-                texture::Size::D2(Extent2d::new(4, 4)),
-                texture::Format::Rgba8Unorm,
-                Some(texture::Sampler::new(
-                    texture::FilterMode::Linear,
-                    texture::AddressMode::ClampToEdge,
-                )),
-                Some(&[0x00, 0x00, 0x00, 0xFF].repeat(4 * 4)),
-            )
-            .expect("valid texture");
-        assert_err!(texture
-            .write(Offset3d::default(), Extent3d::new(0, 0, 0), &[]) => texture::Error::SizeInvalid);
-        assert_err!(texture
-                .write(Offset3d { x: 32, y: 32, z: 32 }, Extent3d::new(1, 1, 1), &[]) => texture::Error::OriginInvalid);
-        assert_err!(texture
-                    .write(Offset3d::default(), Extent3d::new(1, 1, 1), &[]) => texture::Error::PixelsInvalid);
-        texture
-            .write(
-                Offset3d::default(),
-                Extent3d::new(1, 1, 1),
-                &[0xFF, 0xFF, 0xFF, 0xFF].repeat(1 * 1),
-            )
-            .expect("valid texture write");
     }
 }

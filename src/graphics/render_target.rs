@@ -1,4 +1,4 @@
-use crate::{error_cast, Color, Extent2d};
+use crate::{error_cast, Bytes, Color, Extent2d};
 use std::rc::Rc;
 use winit::window::Window;
 
@@ -58,7 +58,10 @@ impl RenderTarget {
         self.surface_config.format
     }
 
-    pub(crate) fn draw_pass<I: IntoIterator<Item = DrawCommand>>(
+    pub(crate) fn draw_pass<
+        const PUSH_SIZE: usize,
+        I: IntoIterator<Item = DrawCommand<PUSH_SIZE>>,
+    >(
         &self,
         clear_color: Option<Color<f64>>,
         commands: I,
@@ -96,6 +99,13 @@ impl RenderTarget {
                     DrawCommand::SetPipeline(pipeline) => render_pass.set_pipeline(pipeline),
                     DrawCommand::SetBindGroup { index, bind_group } => {
                         render_pass.set_bind_group(*index, bind_group, &[])
+                    }
+                    DrawCommand::SetPushConstant {
+                        stages,
+                        offset,
+                        data,
+                    } => {
+                        render_pass.set_push_constants(*stages, *offset, data.as_slice().as_bytes())
                     }
                     DrawCommand::SetVertexBuffer { buffer, start, end } => {
                         render_pass.set_vertex_buffer(0, buffer.slice(*start..*end))

@@ -1,12 +1,12 @@
 use super::{material, texture, Context, DrawCommand, Material, Texture};
-use crate::{error_cast, Bytes, Vector2, Vector3, Vector4};
+use crate::{error_cast, Bytes, Color, Matrix4, SquareMatrix, Vector2, Vector3};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Vertex {
     pub position: Vector3<f32>,
-    pub color: Vector4<f32>,
+    pub color: Color<f32>,
     pub uv: Vector2<f32>,
 }
 unsafe impl Bytes for Vertex {}
@@ -132,13 +132,14 @@ struct PipelineIndex {
 
 #[derive(Debug)]
 struct DrawMeshState {
+    material: Material,
+    view_dimension: wgpu::TextureViewDimension,
     mesh_buffer: Rc<wgpu::Buffer>,
     mesh_buffer_range: (u64, u64),
     mesh_vertex_count: u32,
-    material: Material,
     texture: Rc<wgpu::Texture>,
-    view_dimension: wgpu::TextureViewDimension,
     sampler: Rc<wgpu::Sampler>,
+    transform: Matrix4<f32>,
 }
 
 #[derive(Debug)]
@@ -148,8 +149,9 @@ pub struct Renderer {
     default_texture: Rc<Texture>,
     output_format: wgpu::TextureFormat,
     module: wgpu::ShaderModule,
-    texture_bind_group_layouts: HashMap<wgpu::TextureViewDimension, wgpu::BindGroupLayout>,
     samplers: HashMap<texture::Sampler, Rc<wgpu::Sampler>>,
+    texture_bind_group_layouts: HashMap<wgpu::TextureViewDimension, wgpu::BindGroupLayout>,
+    push_data: Matrix4<f32>,
     pipelines: HashMap<PipelineIndex, Rc<wgpu::RenderPipeline>>,
     draw_states: Vec<DrawMeshState>,
 }
@@ -167,8 +169,9 @@ impl Renderer {
         output_format: wgpu::TextureFormat,
     ) -> Self {
         let module = device.create_shader_module(wgpu::include_wgsl!("mesh.wgsl"));
-        let texture_bind_group_layouts = HashMap::new();
         let samplers = HashMap::new();
+        let texture_bind_group_layouts = HashMap::new();
+        let push_data = Matrix4::identity();
         let pipelines = HashMap::new();
         let draw_states = Vec::new();
         Self {
@@ -177,15 +180,42 @@ impl Renderer {
             default_texture,
             output_format,
             module,
-            texture_bind_group_layouts,
             samplers,
+            texture_bind_group_layouts,
+            push_data,
             pipelines,
             draw_states,
         }
     }
 
-    pub fn draw_mesh(&mut self, mesh: &Mesh, material: Material, texture: Option<&Texture>) {
+    pub fn draw_mesh(
+        &mut self,
+        transform: Matrix4<f32>,
+        mesh: &Mesh,
+        material: Material,
+        texture: Option<&Texture>,
+    ) {
         mesh.flush();
+
+        // register texture sampler
+        let sampler = texture.map_or(Self::DEFAULT_SAMPLER, |texture| {
+            texture.sampler().unwrap_or(Self::DEFAULT_SAMPLER)
+        });
+        let sampler = self
+            .samplers
+            .entry(sampler)
+            .or_insert_with(|| {
+                Rc::new(self.device.create_sampler(&wgpu::SamplerDescriptor {
+                    label: None,
+                    address_mode_u: sampler.address.into(),
+                    address_mode_v: sampler.address.into(),
+                    address_mode_w: sampler.address.into(),
+                    mag_filter: sampler.filter.into(),
+                    min_filter: sampler.filter.into(),
+                    ..Default::default()
+                }))
+            })
+            .clone();
 
         let view_dimension = texture.map_or(self.default_texture.view_dimension(), |texture| {
             texture.view_dimension()
@@ -222,26 +252,6 @@ impl Renderer {
                     })
             });
 
-        // register texture sampler
-        let sampler = texture.map_or(Self::DEFAULT_SAMPLER, |texture| {
-            texture.sampler().unwrap_or(Self::DEFAULT_SAMPLER)
-        });
-        let sampler = self
-            .samplers
-            .entry(sampler)
-            .or_insert_with(|| {
-                Rc::new(self.device.create_sampler(&wgpu::SamplerDescriptor {
-                    label: None,
-                    address_mode_u: sampler.address.into(),
-                    address_mode_v: sampler.address.into(),
-                    address_mode_w: sampler.address.into(),
-                    mag_filter: sampler.filter.into(),
-                    min_filter: sampler.filter.into(),
-                    ..Default::default()
-                }))
-            })
-            .clone();
-
         // register pipeline
         let pipeline_index = PipelineIndex {
             material,
@@ -256,7 +266,10 @@ impl Renderer {
                             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                                 label: None,
                                 bind_group_layouts: &[texture_bind_group_layout],
-                                push_constant_ranges: &[],
+                                push_constant_ranges: &[wgpu::PushConstantRange {
+                                    stages: wgpu::ShaderStages::VERTEX,
+                                    range: 0..256,
+                                }],
                             });
                     Rc::new(
                         self.device
@@ -321,24 +334,25 @@ impl Renderer {
             texture,
             view_dimension,
             sampler,
+            transform,
         };
         self.draw_states.push(draw_state);
     }
 
-    pub(crate) fn submit(&mut self) -> Vec<DrawCommand> {
+    pub(crate) fn submit(&mut self) -> Vec<DrawCommand<64>> {
         let mut draw_commands = Vec::new();
-        for draw_states in self.draw_states.drain(..) {
-            let material = (&draw_states.material).clone();
-            let view_dimension = (&draw_states.view_dimension).clone();
+        for draw_state in self.draw_states.drain(..) {
+            let material = (&draw_state.material).clone();
+            let view_dimension = (&draw_state.view_dimension).clone();
             let pipeline_index = PipelineIndex {
                 material,
                 view_dimension,
             };
             let pipeline = self.pipelines[&pipeline_index].clone();
             let layout = &self.texture_bind_group_layouts[&view_dimension];
-            let texture = (&draw_states.texture).clone();
+            let texture = (&draw_state.texture).clone();
             let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            let sampler = (&draw_states.sampler).clone();
+            let sampler = (&draw_state.sampler).clone();
             let bind_group = Rc::new(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout,
@@ -353,13 +367,20 @@ impl Renderer {
                     },
                 ],
             }));
-            let buffer = draw_states.mesh_buffer.clone();
-            let buffer_range = draw_states.mesh_buffer_range;
-            let vertex_count = draw_states.mesh_vertex_count;
+            let mut push_data = [0u8; 64];
+            push_data.copy_from_slice(draw_state.transform.as_bytes());
+            let buffer = draw_state.mesh_buffer.clone();
+            let buffer_range = draw_state.mesh_buffer_range;
+            let vertex_count = draw_state.mesh_vertex_count;
             draw_commands.push(DrawCommand::SetPipeline(pipeline));
             draw_commands.push(DrawCommand::SetBindGroup {
                 index: 0,
                 bind_group,
+            });
+            draw_commands.push(DrawCommand::SetPushConstant {
+                stages: wgpu::ShaderStages::VERTEX,
+                offset: 0,
+                data: push_data,
             });
             draw_commands.push(DrawCommand::SetVertexBuffer {
                 buffer,
