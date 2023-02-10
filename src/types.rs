@@ -3,6 +3,17 @@ pub use cgmath::*;
 use std::{mem, slice};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
+#[macro_export(local_inner_macros)]
+macro_rules! error_cast {
+    ($error:ident => $super:ty) => {
+        impl From<Error> for $super {
+            fn from(value: Error) -> Self {
+                <$super>::$error(value)
+            }
+        }
+    };
+}
+
 macro_rules! impl_unit {
     ($t:ident,$value:expr) => {
         impl Unit for $t {

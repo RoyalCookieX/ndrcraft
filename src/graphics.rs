@@ -1,25 +1,27 @@
+pub mod material {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum BlendMode {
+        Opaque,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Material {
+        pub blend: BlendMode,
+    }
+}
 pub mod mesh;
 pub mod render_target;
 pub mod texture;
 
+pub use material::Material;
 pub use mesh::Mesh;
 pub use render_target::RenderTarget;
 pub use texture::Texture;
 
+use crate::{error_cast, Extent2d};
 use pollster::block_on;
 use std::rc::Rc;
 use winit::window::Window;
-
-#[macro_export(local_inner_macros)]
-macro_rules! impl_from_error {
-    ($ident:ident) => {
-        impl From<Error> for super::Error {
-            fn from(value: Error) -> Self {
-                super::Error::$ident(value)
-            }
-        }
-    };
-}
 
 pub(crate) enum DrawCommand {
     SetPipeline(Rc<wgpu::RenderPipeline>),
@@ -47,12 +49,15 @@ pub enum Error {
     RenderTarget(render_target::Error),
 }
 
+error_cast!(Graphics => crate::game::Error);
+
 #[derive(Debug)]
 pub struct Context {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
-    device: Rc<wgpu::Device>,
-    queue: Rc<wgpu::Queue>,
+    pub(crate) device: Rc<wgpu::Device>,
+    pub(crate) queue: Rc<wgpu::Queue>,
+    pub(crate) default_texture: Rc<Texture>,
 }
 
 impl Context {
@@ -77,11 +82,20 @@ impl Context {
         ))
         .map(|(device, queue)| (Rc::new(device), Rc::new(queue)))
         .map_err(|error| Error::RequestDeviceFailed(error))?;
+        let default_texture = Rc::new(Texture::new(
+            &device,
+            queue.clone(),
+            texture::Size::D2(Extent2d::new(1, 1)),
+            texture::Format::Rgba8Unorm,
+            None,
+            Some(&[0xFF, 0xFF, 0xFF, 0xFF]),
+        )?);
         Ok(Self {
             instance,
             adapter,
             device,
             queue,
+            default_texture,
         })
     }
 
@@ -101,10 +115,6 @@ impl Context {
             pixels,
         )
         .map_err(|error| error.into())
-    }
-
-    pub fn create_mesh(&self, vertices: &[mesh::Vertex]) -> Result<Mesh, Error> {
-        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
     }
 
     pub(crate) fn create_render_target(

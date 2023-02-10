@@ -1,4 +1,4 @@
-use crate::{impl_from_error, Color, Extent2d};
+use crate::{error_cast, Color, Extent2d};
 use std::rc::Rc;
 use winit::window::Window;
 
@@ -12,7 +12,7 @@ pub enum Error {
     SizeInvalid,
 }
 
-impl_from_error!(RenderTarget);
+error_cast!(RenderTarget => super::Error);
 
 #[derive(Debug)]
 pub struct RenderTarget {

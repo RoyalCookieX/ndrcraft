@@ -1,5 +1,6 @@
-use crate::{impl_from_error, Bytes, Vector2, Vector3, Vector4};
-use std::{cell::RefCell, rc::Rc};
+use super::{material, texture, Context, DrawCommand, Material, Texture};
+use crate::{error_cast, Bytes, Vector2, Vector3, Vector4};
+use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -43,7 +44,7 @@ pub enum Error {
     VerticesInvalid,
 }
 
-impl_from_error!(Mesh);
+error_cast!(Mesh => super::Error);
 
 #[derive(Debug)]
 pub struct Mesh {
@@ -55,7 +56,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub(super) fn new(
+    fn new(
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         vertices: &[Vertex],
@@ -120,5 +121,271 @@ impl Mesh {
         vertices: &[Vertex],
     ) {
         queue.write_buffer(buffer, buffer_info.vertices_offset, vertices.as_bytes());
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct PipelineIndex {
+    material: Material,
+    view_dimension: wgpu::TextureViewDimension,
+}
+
+#[derive(Debug)]
+struct DrawMeshState {
+    mesh_buffer: Rc<wgpu::Buffer>,
+    mesh_buffer_range: (u64, u64),
+    mesh_vertex_count: u32,
+    material: Material,
+    texture: Rc<wgpu::Texture>,
+    view_dimension: wgpu::TextureViewDimension,
+    sampler: Rc<wgpu::Sampler>,
+}
+
+#[derive(Debug)]
+pub struct Renderer {
+    device: Rc<wgpu::Device>,
+    queue: Rc<wgpu::Queue>,
+    default_texture: Rc<Texture>,
+    output_format: wgpu::TextureFormat,
+    module: wgpu::ShaderModule,
+    texture_bind_group_layouts: HashMap<wgpu::TextureViewDimension, wgpu::BindGroupLayout>,
+    samplers: HashMap<texture::Sampler, Rc<wgpu::Sampler>>,
+    pipelines: HashMap<PipelineIndex, Rc<wgpu::RenderPipeline>>,
+    draw_states: Vec<DrawMeshState>,
+}
+
+impl Renderer {
+    const DEFAULT_SAMPLER: texture::Sampler = texture::Sampler::new(
+        texture::FilterMode::Linear,
+        texture::AddressMode::ClampToEdge,
+    );
+
+    fn new(
+        device: Rc<wgpu::Device>,
+        queue: Rc<wgpu::Queue>,
+        default_texture: Rc<Texture>,
+        output_format: wgpu::TextureFormat,
+    ) -> Self {
+        let module = device.create_shader_module(wgpu::include_wgsl!("mesh.wgsl"));
+        let texture_bind_group_layouts = HashMap::new();
+        let samplers = HashMap::new();
+        let pipelines = HashMap::new();
+        let draw_states = Vec::new();
+        Self {
+            device,
+            queue,
+            default_texture,
+            output_format,
+            module,
+            texture_bind_group_layouts,
+            samplers,
+            pipelines,
+            draw_states,
+        }
+    }
+
+    pub fn draw_mesh(&mut self, mesh: &Mesh, material: Material, texture: Option<&Texture>) {
+        mesh.flush();
+
+        let view_dimension = texture.map_or(self.default_texture.view_dimension(), |texture| {
+            texture.view_dimension()
+        });
+
+        // register texture bind group layout
+        let texture_bind_group_layout = self
+            .texture_bind_group_layouts
+            .entry(view_dimension)
+            .or_insert_with(|| {
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: view_dimension,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                        ],
+                    })
+            });
+
+        // register texture sampler
+        let sampler = texture.map_or(Self::DEFAULT_SAMPLER, |texture| {
+            texture.sampler().unwrap_or(Self::DEFAULT_SAMPLER)
+        });
+        let sampler = self
+            .samplers
+            .entry(sampler)
+            .or_insert_with(|| {
+                Rc::new(self.device.create_sampler(&wgpu::SamplerDescriptor {
+                    label: None,
+                    address_mode_u: sampler.address.into(),
+                    address_mode_v: sampler.address.into(),
+                    address_mode_w: sampler.address.into(),
+                    mag_filter: sampler.filter.into(),
+                    min_filter: sampler.filter.into(),
+                    ..Default::default()
+                }))
+            })
+            .clone();
+
+        // register pipeline
+        let pipeline_index = PipelineIndex {
+            material,
+            view_dimension,
+        };
+        self.pipelines.entry(pipeline_index).or_insert_with(|| {
+                    let blend = match material.blend {
+                        material::BlendMode::Opaque => wgpu::BlendState::REPLACE,
+                    };
+                    let pipeline_layout =
+                        self.device
+                            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                                label: None,
+                                bind_group_layouts: &[texture_bind_group_layout],
+                                push_constant_ranges: &[],
+                            });
+                    Rc::new(
+                        self.device
+                            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                                label: None,
+                                layout: Some(&pipeline_layout),
+                                vertex: wgpu::VertexState {
+                                    module: &self.module,
+                                    entry_point: "vs_main",
+                                    buffers: &[wgpu::VertexBufferLayout {
+                                        array_stride: mem::size_of::<Vertex>() as u64,
+                                        step_mode: wgpu::VertexStepMode::Vertex,
+                                        attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x2],
+                                    }],
+                                },
+                                primitive: wgpu::PrimitiveState {
+                                    topology: wgpu::PrimitiveTopology::TriangleList,
+                                    strip_index_format: None,
+                                    front_face: wgpu::FrontFace::Cw,
+                                    cull_mode: None,
+                                    unclipped_depth: false,
+                                    polygon_mode: wgpu::PolygonMode::Fill,
+                                    conservative: false,
+                                },
+                                depth_stencil: None,
+                                multisample: wgpu::MultisampleState {
+                                    count: 1,
+                                    mask: !0,
+                                    alpha_to_coverage_enabled: false,
+                                },
+                                fragment: Some(wgpu::FragmentState {
+                                    module: &self.module,
+                                    entry_point: "fs_main",
+                                    targets: &[Some(wgpu::ColorTargetState {
+                                        format: self.output_format,
+                                        blend: Some(blend),
+                                        write_mask: wgpu::ColorWrites::ALL,
+                                    })],
+                                }),
+                                multiview: None,
+                            }),
+                    )
+                });
+
+        // record mesh
+        let mesh_buffer = mesh.buffer.borrow().clone();
+        let mesh_buffer_range = {
+            let buffer_info = mesh.buffer_info.borrow();
+            let start = buffer_info.vertices_offset;
+            let size = buffer_info.vertices_size;
+            (start, start + size)
+        };
+        let mesh_vertex_count = mesh.vertices.len() as u32;
+        let texture = texture.map_or(self.default_texture.handle().clone(), |texture| {
+            texture.handle().clone()
+        });
+        let draw_state = DrawMeshState {
+            mesh_buffer,
+            mesh_buffer_range,
+            mesh_vertex_count,
+            material,
+            texture,
+            view_dimension,
+            sampler,
+        };
+        self.draw_states.push(draw_state);
+    }
+
+    pub(crate) fn submit(&mut self) -> Vec<DrawCommand> {
+        let mut draw_commands = Vec::new();
+        for draw_states in self.draw_states.drain(..) {
+            let material = (&draw_states.material).clone();
+            let view_dimension = (&draw_states.view_dimension).clone();
+            let pipeline_index = PipelineIndex {
+                material,
+                view_dimension,
+            };
+            let pipeline = self.pipelines[&pipeline_index].clone();
+            let layout = &self.texture_bind_group_layouts[&view_dimension];
+            let texture = (&draw_states.texture).clone();
+            let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let sampler = (&draw_states.sampler).clone();
+            let bind_group = Rc::new(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                ],
+            }));
+            let buffer = draw_states.mesh_buffer.clone();
+            let buffer_range = draw_states.mesh_buffer_range;
+            let vertex_count = draw_states.mesh_vertex_count;
+            draw_commands.push(DrawCommand::SetPipeline(pipeline));
+            draw_commands.push(DrawCommand::SetBindGroup {
+                index: 0,
+                bind_group,
+            });
+            draw_commands.push(DrawCommand::SetVertexBuffer {
+                buffer,
+                start: buffer_range.0,
+                end: buffer_range.1,
+            });
+            draw_commands.push(DrawCommand::Draw {
+                start: 0,
+                end: vertex_count,
+            });
+        }
+        draw_commands
+    }
+}
+
+impl Context {
+    pub fn create_mesh(&self, vertices: &[Vertex]) -> Result<Mesh, super::Error> {
+        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
+    }
+
+    pub(crate) fn create_mesh_renderer(&self, output_format: wgpu::TextureFormat) -> Renderer {
+        Renderer::new(
+            self.device.clone(),
+            self.queue.clone(),
+            self.default_texture.clone(),
+            output_format,
+        )
     }
 }

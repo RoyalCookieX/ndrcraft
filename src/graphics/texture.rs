@@ -1,8 +1,8 @@
-use crate::{impl_from_error, Extent2d, Extent3d, Offset3d};
+use crate::{error_cast, Extent2d, Extent3d, Offset3d};
 use std::{num::NonZeroU32, rc::Rc};
 
 impl Sampler {
-    pub fn new(filter: FilterMode, address: AddressMode) -> Self {
+    pub const fn new(filter: FilterMode, address: AddressMode) -> Self {
         Self { filter, address }
     }
 }
@@ -91,7 +91,7 @@ pub enum Error {
     SizeInvalid,
 }
 
-impl_from_error!(Texture);
+error_cast!(Texture => super::Error);
 
 #[derive(Debug)]
 pub struct Texture {
