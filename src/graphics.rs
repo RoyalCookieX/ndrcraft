@@ -21,6 +21,23 @@ macro_rules! impl_from_error {
     };
 }
 
+pub(crate) enum DrawCommand {
+    SetPipeline(Rc<wgpu::RenderPipeline>),
+    SetBindGroup {
+        index: u32,
+        bind_group: Rc<wgpu::BindGroup>,
+    },
+    SetVertexBuffer {
+        buffer: Rc<wgpu::Buffer>,
+        start: u64,
+        end: u64,
+    },
+    Draw {
+        start: u32,
+        end: u32,
+    },
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     RequestAdapterFailed,

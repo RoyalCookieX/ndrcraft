@@ -24,9 +24,9 @@ macro_rules! impl_partial_eq_vector {
 }
 
 macro_rules! define_vector_struct {
-    ($(#[doc=$doc:expr])? $(#[derive($($der:ident),*)])? $t:ident{$($m:ident),*}) => {
+    ($(#[doc=$doc:expr])? $(#[derive($($derive:ident),*)])? $t:ident{$($m:ident),*}) => {
         $(#[doc=$doc])?
-        $(#[derive($($der),*)])?
+        $(#[derive($($derive),*)])?
         pub struct $t<T: Unit> {
             $(pub $m: T,)*
         }
@@ -217,6 +217,62 @@ impl From<Extent3d<u32>> for wgpu::Extent3d {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
+pub struct Color<T: Unit> {
+    pub r: T,
+    pub g: T,
+    pub b: T,
+    pub a: T,
+}
+
+impl<T: Unit> Color<T> {
+    pub const fn new(r: T, g: T, b: T, a: T) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub fn clear() -> Self {
+        Self::new(T::zero(), T::zero(), T::zero(), T::zero())
+    }
+
+    pub fn black() -> Self {
+        Self::new(T::zero(), T::zero(), T::zero(), T::one())
+    }
+
+    pub fn red() -> Self {
+        Self::new(T::one(), T::zero(), T::zero(), T::one())
+    }
+
+    pub fn green() -> Self {
+        Self::new(T::zero(), T::one(), T::zero(), T::one())
+    }
+
+    pub fn blue() -> Self {
+        Self::new(T::zero(), T::zero(), T::one(), T::one())
+    }
+
+    pub fn white() -> Self {
+        Self::new(T::one(), T::one(), T::one(), T::one())
+    }
+}
+
+impl From<wgpu::Color> for Color<f64> {
+    fn from(value: wgpu::Color) -> Self {
+        Self::new(value.r, value.g, value.b, value.a)
+    }
+}
+
+impl From<Color<f64>> for wgpu::Color {
+    fn from(value: Color<f64>) -> Self {
+        Self {
+            r: value.r,
+            g: value.g,
+            b: value.b,
+            a: value.a,
+        }
+    }
+}
+
 macro_rules! impl_bytes {
     ($t:ident) => {
         unsafe impl Bytes for $t {}
@@ -251,6 +307,7 @@ impl_bytes!(i128);
 impl_bytes!(u128);
 impl_bytes!(isize);
 impl_bytes!(usize);
+impl_bytes!(Color<T>);
 impl_bytes!(Deg<T>);
 impl_bytes!(Rad<T>);
 impl_bytes!(Vector2<T>);

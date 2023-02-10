@@ -1,4 +1,4 @@
-use crate::{graphics, voxel, Extent2d, Extent3d, Offset3d, Voxel};
+use crate::{graphics, voxel, Color, Extent2d, Extent3d, Offset3d, Voxel};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::OsError,
@@ -102,7 +102,9 @@ impl Game {
                 }
                 _ => {}
             },
-            Event::RedrawRequested(window_id) if window_id == window.id() => {}
+            Event::RedrawRequested(window_id) if window_id == window.id() => {
+                log_on_err!(render_target.draw_pass(Some(Color::black()), None));
+            }
             _ => {}
         });
     }
