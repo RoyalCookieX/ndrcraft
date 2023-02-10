@@ -1,11 +1,14 @@
 pub mod mesh;
+pub mod render_target;
 pub mod texture;
 
 pub use mesh::Mesh;
+pub use render_target::RenderTarget;
 pub use texture::Texture;
 
 use pollster::block_on;
 use std::rc::Rc;
+use winit::window::Window;
 
 #[macro_export(local_inner_macros)]
 macro_rules! impl_from_error {
@@ -22,8 +25,9 @@ macro_rules! impl_from_error {
 pub enum Error {
     RequestAdapterFailed,
     RequestDeviceFailed(wgpu::RequestDeviceError),
-    Mesh(mesh::Error),
     Texture(texture::Error),
+    Mesh(mesh::Error),
+    RenderTarget(render_target::Error),
 }
 
 #[derive(Debug)]
@@ -64,10 +68,6 @@ impl Context {
         })
     }
 
-    pub fn create_mesh(&self, vertices: &[mesh::Vertex]) -> Result<Mesh, Error> {
-        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
-    }
-
     pub fn create_texture(
         &self,
         size: texture::Size,
@@ -82,6 +82,26 @@ impl Context {
             format,
             sampler,
             pixels,
+        )
+        .map_err(|error| error.into())
+    }
+
+    pub fn create_mesh(&self, vertices: &[mesh::Vertex]) -> Result<Mesh, Error> {
+        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
+    }
+
+    pub(crate) fn create_render_target(
+        &self,
+        window: &Window,
+        vsync: bool,
+    ) -> Result<RenderTarget, Error> {
+        RenderTarget::new(
+            &self.instance,
+            &self.adapter,
+            self.device.clone(),
+            self.queue.clone(),
+            window,
+            vsync,
         )
         .map_err(|error| error.into())
     }

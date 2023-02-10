@@ -7,6 +7,14 @@ use winit::{
     window::WindowBuilder,
 };
 
+macro_rules! log_on_err {
+    ($expr:expr) => {
+        if let Err(error) = $expr {
+            log::error!("{error:?}");
+        }
+    };
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum WindowMode {
     Windowed(Extent2d<u32>),
@@ -68,10 +76,18 @@ impl Game {
             ));
         }
 
+        // create render target
+        let mut render_target = self
+            .graphics
+            .create_render_target(&window, self.settings.vsync)
+            .map_err(|error| Error::Graphics(error.into()))?;
+
         event_loop.run(move |event, _, flow| match event {
             // main events
             Event::NewEvents(_) => {}
-            Event::MainEventsCleared => {}
+            Event::MainEventsCleared => {
+                window.request_redraw();
+            }
             Event::LoopDestroyed => {}
 
             // window events
@@ -79,6 +95,10 @@ impl Game {
                 WindowEvent::CloseRequested => {
                     flow.set_exit();
                     return;
+                }
+                WindowEvent::Resized(_) => {
+                    let window_size = window.inner_size().into();
+                    log_on_err!(render_target.set_size(window_size));
                 }
                 _ => {}
             },
