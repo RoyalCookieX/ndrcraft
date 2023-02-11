@@ -1,10 +1,10 @@
-use crate::{graphics, Color, Extent3d, Offset3d, Vector2, Vector3};
+use crate::{graphics, impl_from_error, Color, Extent2d, Extent3d, Offset3d, Vector2, Vector3};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Voxel {
     #[default]
     Void,
-    Tile(u64),
+    Tile(u32),
 }
 
 pub struct WorldIterator<'a> {
@@ -29,205 +29,131 @@ impl<'a> Iterator for WorldIterator<'a> {
     }
 }
 
-use graphics::mesh::Vertex;
-const CUBE_VERTICES: [Vertex; 36] = [
+const CUBE_VERTEX_COUNT: usize = 36;
+const CUBE_VERTEX_POSITIONS: [Vector3<f32>; CUBE_VERTEX_COUNT] = [
     // left
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
+    Vector3::new(-0.5, -0.5, -0.5),
+    Vector3::new(-0.5, 0.5, -0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
+    Vector3::new(-0.5, 0.5, -0.5),
+    Vector3::new(-0.5, 0.5, 0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
     // right
-    Vertex {
-        position: Vector3::new(0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
+    Vector3::new(0.5, -0.5, -0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(0.5, -0.5, 0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(0.5, 0.5, 0.5),
+    Vector3::new(0.5, -0.5, 0.5),
     // bottom
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
+    Vector3::new(-0.5, -0.5, -0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
+    Vector3::new(0.5, -0.5, -0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
+    Vector3::new(0.5, -0.5, 0.5),
+    Vector3::new(0.5, -0.5, -0.5),
     // top
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
+    Vector3::new(0.5, 0.5, 0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(-0.5, 0.5, 0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(-0.5, 0.5, -0.5),
+    Vector3::new(-0.5, 0.5, 0.5),
     // far
-    Vertex {
-        position: Vector3::new(0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
+    Vector3::new(0.5, -0.5, -0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(-0.5, -0.5, -0.5),
+    Vector3::new(0.5, 0.5, -0.5),
+    Vector3::new(-0.5, 0.5, -0.5),
+    Vector3::new(-0.5, -0.5, -0.5),
     // near
-    Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
+    Vector3::new(0.5, -0.5, 0.5),
+    Vector3::new(0.5, 0.5, 0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
+    Vector3::new(0.5, 0.5, 0.5),
+    Vector3::new(-0.5, 0.5, 0.5),
+    Vector3::new(-0.5, -0.5, 0.5),
 ];
+const CUBE_VERTEX_UVS: [Vector2<f32>; CUBE_VERTEX_COUNT] = [
+    // -X
+    Vector2::new(0.0, 0.667),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(1.0, 0.667),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(1.0, 0.667),
+    // +X
+    Vector2::new(1.0, 0.667),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(0.0, 0.667),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(0.0, 0.667),
+    // -Y
+    Vector2::new(0.0, 1.0),
+    Vector2::new(0.0, 0.667),
+    Vector2::new(1.0, 1.0),
+    Vector2::new(0.0, 0.667),
+    Vector2::new(1.0, 0.667),
+    Vector2::new(1.0, 1.0),
+    // +Y
+    Vector2::new(1.0, 0.333),
+    Vector2::new(1.0, 0.0),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(1.0, 0.0),
+    Vector2::new(0.0, 0.0),
+    Vector2::new(0.0, 0.333),
+    // -Z
+    Vector2::new(0.0, 0.667),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(1.0, 0.667),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(1.0, 0.667),
+    // +Z
+    Vector2::new(1.0, 0.667),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(0.0, 0.667),
+    Vector2::new(1.0, 0.333),
+    Vector2::new(0.0, 0.333),
+    Vector2::new(0.0, 0.667),
+];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TextureLayout {
+    #[default]
+    Single,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum WorldError {
+    PositionInvalid(Offset3d<i32>),
+    TileIndexInvalid(u32),
+    DataInvalid,
+    Graphics(graphics::Error),
+    Texture(graphics::texture::Error),
+}
+
+impl_from_error!(graphics::Error, WorldError, Graphics);
+impl_from_error!(graphics::texture::Error, WorldError, Texture);
 
 pub struct World {
     size: Extent3d<u32>,
     origin_offset: Offset3d<i32>,
     voxels: Vec<Voxel>,
+    max_tiles: u32,
     mesh: graphics::Mesh,
+    texture: graphics::Texture,
 }
 
 impl World {
-    pub(crate) fn new(graphics: &graphics::Context, size: Extent3d<u32>) -> Self {
+    const TEXTURE_SIZE: Extent2d<u32> = Extent2d::new(8, 24);
+
+    pub(crate) fn new(
+        graphics: &graphics::Context,
+        size: Extent3d<u32>,
+        max_tiles: u32,
+    ) -> Result<Self, WorldError> {
         let half_size = Extent3d::new(
             size.width as i64 / 2,
             size.height as i64 / 2,
@@ -240,12 +166,29 @@ impl World {
         );
         let voxels = vec![Voxel::default(); (size.width * size.height * size.depth) as usize];
         let mesh = graphics.create_mesh(&[]);
-        Self {
+        let texture_size = graphics::texture::Size::D2(Extent2d::new(
+            Self::TEXTURE_SIZE.width * max_tiles,
+            Self::TEXTURE_SIZE.height,
+        ));
+        let texture = graphics
+            .create_texture(
+                texture_size,
+                graphics::texture::Format::Rgba8Unorm,
+                Some(graphics::texture::Sampler::new(
+                    graphics::texture::FilterMode::Nearest,
+                    graphics::texture::AddressMode::ClampToEdge,
+                )),
+                None,
+            )
+            .map_err(|error| WorldError::from(error))?;
+        Ok(Self {
             size,
             origin_offset,
+            max_tiles,
             voxels,
             mesh,
-        }
+            texture,
+        })
     }
 
     pub fn size(&self) -> Extent3d<u32> {
@@ -256,15 +199,52 @@ impl World {
         &self.mesh
     }
 
+    pub fn texture(&self) -> &graphics::Texture {
+        &self.texture
+    }
+
     pub fn get_voxel(&self, position: Offset3d<i32>) -> Option<&Voxel> {
         self.voxels.get(self.get_voxel_index(position)?)
     }
 
-    pub fn set_voxel(&mut self, position: Offset3d<i32>, voxel: Voxel) -> Option<Voxel> {
-        let Some(index) = self.get_voxel_index(position) else { return None; };
-        let Some(old_voxel) = self.voxels.get_mut(index) else { return None; };
+    pub fn set_voxel(
+        &mut self,
+        position: Offset3d<i32>,
+        voxel: Voxel,
+    ) -> Result<Voxel, WorldError> {
+        let Some(index) = self.get_voxel_index(position) else { return Err(WorldError::PositionInvalid(position)); };
+        if let Voxel::Tile(tile_index) = voxel {
+            if tile_index >= self.max_tiles {
+                return Err(WorldError::TileIndexInvalid(tile_index));
+            }
+        }
+        let old_voxel = &mut self.voxels[index];
         *old_voxel = voxel;
-        Some(*old_voxel)
+        Ok(*old_voxel)
+    }
+
+    pub fn set_voxel_texture(
+        &self,
+        tile_index: u32,
+        layout: TextureLayout,
+        pixels: &[u8],
+    ) -> Result<(), WorldError> {
+        if tile_index >= self.max_tiles {
+            return Err(WorldError::TileIndexInvalid(tile_index));
+        }
+        let required_size = match layout {
+            TextureLayout::Single => {
+                (4 * Self::TEXTURE_SIZE.width * Self::TEXTURE_SIZE.height) as usize
+            }
+        };
+        if pixels.len() < required_size {
+            return Err(WorldError::DataInvalid);
+        }
+
+        let origin = Offset3d::new(Self::TEXTURE_SIZE.width * tile_index, 0, 0);
+        let size = Extent3d::new(Self::TEXTURE_SIZE.width, Self::TEXTURE_SIZE.height, 1);
+        self.texture.write(origin, size, pixels)?;
+        Ok(())
     }
 
     pub fn iter(&self) -> WorldIterator<'_> {
@@ -272,16 +252,29 @@ impl World {
     }
 
     pub fn generate_mesh(&mut self) {
-        let mut staging = Vec::with_capacity(CUBE_VERTICES.len());
-        for (position, voxel) in self.iter() {
-            if let Voxel::Void = voxel {
-                continue;
+        self.mesh.vertices.clear();
+        let mut staging = Vec::new();
+        for (voxel_position, voxel) in self.iter() {
+            match voxel {
+                Voxel::Void => continue,
+                Voxel::Tile(tile_index) => {
+                    let world_position = Vector3::new(
+                        voxel_position.x as f32,
+                        voxel_position.y as f32,
+                        voxel_position.z as f32,
+                    );
+                    staging.extend((0..CUBE_VERTEX_COUNT).into_iter().map(|vertex_index| {
+                        let position = CUBE_VERTEX_POSITIONS[vertex_index] + world_position;
+                        let color = Color::white();
+                        let unscaled_uv = CUBE_VERTEX_UVS[vertex_index];
+                        let uv = Vector2::new(
+                            (*tile_index as f32 + unscaled_uv.x) / self.max_tiles as f32,
+                            unscaled_uv.y,
+                        );
+                        graphics::mesh::Vertex::new(position, color, uv)
+                    }));
+                }
             }
-            let position = Vector3::new(position.x as f32, position.y as f32, position.z as f32);
-            staging.extend(CUBE_VERTICES.iter().map(|vertex| Vertex {
-                position: vertex.position + position,
-                ..*vertex
-            }));
         }
         self.mesh.vertices.extend_from_slice(&staging);
     }
@@ -297,6 +290,15 @@ impl World {
             return None;
         }
         unsafe { Some(self.get_voxel_index_unchecked(position)) }
+    }
+
+    #[inline]
+    fn get_voxel_position(&self, index: usize) -> Option<Offset3d<i32>> {
+        if index >= self.voxels.len() {
+            None
+        } else {
+            unsafe { Some(self.get_voxel_position_unchecked(index)) }
+        }
     }
 
     #[inline]
@@ -331,14 +333,5 @@ impl World {
             (y - origin_y) as i32,
             (z - origin_z) as i32,
         )
-    }
-
-    #[inline]
-    fn get_voxel_position(&self, index: usize) -> Option<Offset3d<i32>> {
-        if index >= self.voxels.len() {
-            None
-        } else {
-            unsafe { Some(self.get_voxel_position_unchecked(index)) }
-        }
     }
 }

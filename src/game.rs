@@ -1,4 +1,4 @@
-use crate::{graphics, types::*, voxel, Voxel};
+use crate::{graphics, impl_from_error, types::*, voxel, Voxel};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::OsError,
@@ -32,7 +32,11 @@ pub struct Settings {
 pub enum Error {
     CreateWindowFailed(OsError),
     Graphics(graphics::Error),
+    World(voxel::WorldError),
 }
+
+impl_from_error!(graphics::Error, Error, Graphics);
+impl_from_error!(voxel::WorldError, Error, World);
 
 pub struct Game {
     settings: Settings,
@@ -42,15 +46,43 @@ pub struct Game {
 
 impl Game {
     pub fn new(settings: Settings) -> Result<Self, Error> {
-        let graphics = graphics::Context::new().map_err(|error| Error::Graphics(error))?;
-        let mut world = voxel::World::new(&graphics, settings.world_size);
-        world.set_voxel(Offset3d::new(-2, 0, 0), Voxel::Tile(0));
-        world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(1));
-        world.set_voxel(Offset3d::new(2, 0, 0), Voxel::Tile(2));
-        world.set_voxel(Offset3d::new(0, -2, 0), Voxel::Tile(3));
-        world.set_voxel(Offset3d::new(0, 2, 0), Voxel::Tile(4));
-        world.set_voxel(Offset3d::new(0, 0, -2), Voxel::Tile(5));
-        world.set_voxel(Offset3d::new(0, 0, 2), Voxel::Tile(6));
+        let graphics = graphics::Context::new()?;
+        let mut world = voxel::World::new(&graphics, settings.world_size, 3)?;
+        let voxel_0 = image::io::Reader::open("assets/textures/voxel_0.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        let voxel_1 = image::io::Reader::open("assets/textures/voxel_1.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        let voxel_2 = image::io::Reader::open("assets/textures/voxel_2.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        world.set_voxel_texture(0, voxel::TextureLayout::Single, voxel_0.as_bytes())?;
+        world.set_voxel_texture(1, voxel::TextureLayout::Single, voxel_1.as_bytes())?;
+        world.set_voxel_texture(2, voxel::TextureLayout::Single, voxel_2.as_bytes())?;
+        let width = (world.size().width / 2) as i32;
+        let height = (world.size().height / 2) as i32;
+        let depth = (world.size().depth / 2) as i32;
+        for z in -width..width {
+            for y in -height..=0 {
+                for x in -depth..depth {
+                    use std::collections::hash_map::DefaultHasher;
+                    use std::hash::{Hash, Hasher};
+
+                    let tile_index = {
+                        let mut hasher = DefaultHasher::new();
+                        z.hash(&mut hasher);
+                        y.hash(&mut hasher);
+                        x.hash(&mut hasher);
+                        (hasher.finish() % 3) as u32
+                    };
+                    world.set_voxel(Offset3d::new(x, y, z), Voxel::Tile(tile_index))?;
+                }
+            }
+        }
         world.generate_mesh();
         Ok(Self {
             settings,
@@ -100,42 +132,19 @@ impl Game {
             render_target.target_format(),
             get_projection(window.inner_size().into()),
         );
-        mesh_renderer.set_view(
-            Matrix4::from_translation(Vector3::new(0.0, 0.0, 3.0))
-                .inverse_transform()
-                .unwrap(),
-        );
+        let camera = Matrix4::from_translation(Vector3::new(0.0, 2.0, 3.0))
+            * Matrix4::from_angle_x(Deg(-30.0));
+        mesh_renderer.set_view(camera.inverse_transform().unwrap());
 
         // create renderables
         let material = graphics::Material {
             blend: graphics::material::BlendMode::Opaque,
         };
-        let texture = self.graphics.create_texture(
-            graphics::texture::Size::D2(Extent2d::new(2, 2)),
-            graphics::texture::Format::Rgba8Unorm,
-            Some(graphics::texture::Sampler::new(
-                graphics::texture::FilterMode::Linear,
-                graphics::texture::AddressMode::ClampToEdge,
-            )),
-            Some(&[
-                0xFF, 0x00, 0x00, 0xFF, // red
-                0x00, 0xFF, 0x00, 0xFF, // green
-                0x00, 0x00, 0xFF, 0xFF, // blue
-                0xFF, 0xFF, 0xFF, 0xFF, // white
-            ]),
-        )?;
-
-        let t0 = std::time::Instant::now();
-        let mut transform = Matrix4::identity();
 
         event_loop.run(move |event, _, flow| match event {
             // main events
             Event::NewEvents(_) => {}
             Event::MainEventsCleared => {
-                let t1 = std::time::Instant::now();
-                let t = t1.duration_since(t0).as_secs_f32();
-                transform = Matrix4::from_angle_y(Deg(t * 30.0))
-                    * Matrix4::from_translation(Vector3::new(0.0, t.sin(), 0.0));
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -154,7 +163,12 @@ impl Game {
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                mesh_renderer.draw_mesh(transform, &self.world.mesh(), material, Some(&texture));
+                mesh_renderer.draw_mesh(
+                    Matrix4::identity(),
+                    self.world.mesh(),
+                    material,
+                    Some(self.world.texture()),
+                );
                 log_on_err!(render_target.draw_pass(
                     Some(Color::black()),
                     Some(1.0),

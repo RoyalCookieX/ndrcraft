@@ -13,7 +13,7 @@ fn main() {
     let game = Game::new(game::Settings {
         window_mode: game::WindowMode::Windowed(Extent2d::new(1424, 720)),
         vsync: false,
-        world_size: Extent3d::new(8, 8, 8),
+        world_size: Extent3d::new(100, 3, 100),
     })
     .expect("valid game");
     game.run().expect("valid game loop");

@@ -18,7 +18,7 @@ pub use mesh::Mesh;
 pub use render_target::RenderTarget;
 pub use texture::Texture;
 
-use crate::{error_cast, Extent2d};
+use crate::{impl_from_error, Extent2d};
 use pollster::block_on;
 use std::rc::Rc;
 use winit::window::Window;
@@ -66,7 +66,8 @@ pub enum Error {
     RenderTarget(render_target::Error),
 }
 
-error_cast!(Graphics => crate::game::Error);
+impl_from_error!(texture::Error, Error, Texture);
+impl_from_error!(render_target::Error, Error, RenderTarget);
 
 #[derive(Debug)]
 pub struct Context {

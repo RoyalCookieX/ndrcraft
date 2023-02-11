@@ -1,4 +1,4 @@
-use crate::{error_cast, Bytes, Color, Extent2d};
+use crate::{Bytes, Color, Extent2d};
 use std::rc::Rc;
 use winit::window::Window;
 
@@ -12,8 +12,6 @@ pub enum Error {
     SizeInvalid,
     CommandsInvalid,
 }
-
-error_cast!(RenderTarget => super::Error);
 
 #[derive(Debug)]
 pub struct RenderTarget {

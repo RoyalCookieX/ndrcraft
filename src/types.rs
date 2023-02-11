@@ -4,10 +4,10 @@ use std::{mem, slice};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
 #[macro_export(local_inner_macros)]
-macro_rules! error_cast {
-    ($error:ident => $super:ty) => {
-        impl From<Error> for $super {
-            fn from(value: Error) -> Self {
+macro_rules! impl_from_error {
+    ($sub:ty, $super:ty, $error:ident) => {
+        impl From<$sub> for $super {
+            fn from(value: $sub) -> Self {
                 <$super>::$error(value)
             }
         }

@@ -12,6 +12,16 @@ pub struct Vertex {
     pub uv: Vector2<f32>,
 }
 
+impl Vertex {
+    pub const fn new(position: Vector3<f32>, color: Color<f32>, uv: Vector2<f32>) -> Self {
+        Self {
+            position,
+            color,
+            uv,
+        }
+    }
+}
+
 impl Default for Vertex {
     fn default() -> Self {
         Self {

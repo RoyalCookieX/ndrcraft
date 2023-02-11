@@ -1,4 +1,4 @@
-use crate::{error_cast, Extent2d, Extent3d, Offset3d};
+use crate::{Extent2d, Extent3d, Offset3d};
 use std::{num::NonZeroU32, rc::Rc};
 
 impl Sampler {
@@ -90,8 +90,6 @@ pub enum Error {
     OriginInvalid,
     SizeInvalid,
 }
-
-error_cast!(Texture => super::Error);
 
 #[derive(Debug)]
 pub struct Texture {
