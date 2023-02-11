@@ -35,187 +35,187 @@ const CUBE_VERTICES: [Vertex; 36] = [
     Vertex {
         position: Vector3::new(-0.5, -0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
     },
     // right
     Vertex {
         position: Vector3::new(0.5, -0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
     },
     // bottom
     Vertex {
         position: Vector3::new(-0.5, -0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, -0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(0.5, -0.5, -0.5),
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
     },
     // top
     Vertex {
         position: Vector3::new(-0.5, 0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
     },
     // far
     Vertex {
         position: Vector3::new(0.5, -0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(-0.5, -0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, -0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, -0.5, -0.5),
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
     },
     // near
     Vertex {
         position: Vector3::new(0.5, -0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(1.0, 0.0),
     },
     Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
         position: Vector3::new(-0.5, -0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(0.0, 0.0),
-    },
-    Vertex {
-        position: Vector3::new(0.5, 0.5, 0.5),
-        color: Color::new(1.0, 1.0, 1.0, 1.0),
-        uv: Vector2::new(1.0, 1.0),
-    },
-    Vertex {
-        position: Vector3::new(-0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 1.0),
     },
     Vertex {
-        position: Vector3::new(-0.5, -0.5, 0.5),
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
         color: Color::new(1.0, 1.0, 1.0, 1.0),
         uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
     },
 ];
 
@@ -257,14 +257,14 @@ impl World {
     }
 
     pub fn get_voxel(&self, position: Offset3d<i32>) -> Option<&Voxel> {
-        self.voxels.get(self.get_voxel_index(position))
+        self.voxels.get(self.get_voxel_index(position)?)
     }
 
-    pub fn set_voxel(&mut self, position: Offset3d<i32>, voxel: Voxel) -> bool {
-        let index = self.get_voxel_index(position);
-        let Some(old_voxel) = self.voxels.get_mut(index) else { return false; };
+    pub fn set_voxel(&mut self, position: Offset3d<i32>, voxel: Voxel) -> Option<Voxel> {
+        let Some(index) = self.get_voxel_index(position) else { return None; };
+        let Some(old_voxel) = self.voxels.get_mut(index) else { return None; };
         *old_voxel = voxel;
-        true
+        Some(*old_voxel)
     }
 
     pub fn iter(&self) -> WorldIterator<'_> {
@@ -272,11 +272,35 @@ impl World {
     }
 
     pub fn generate_mesh(&mut self) {
-        self.mesh.vertices.extend_from_slice(&CUBE_VERTICES)
+        let mut staging = Vec::with_capacity(CUBE_VERTICES.len());
+        for (position, voxel) in self.iter() {
+            if let Voxel::Void = voxel {
+                continue;
+            }
+            let position = Vector3::new(position.x as f32, position.y as f32, position.z as f32);
+            staging.extend(CUBE_VERTICES.iter().map(|vertex| Vertex {
+                position: vertex.position + position,
+                ..*vertex
+            }));
+        }
+        self.mesh.vertices.extend_from_slice(&staging);
     }
 
     #[inline]
-    fn get_voxel_index(&self, position: Offset3d<i32>) -> usize {
+    fn get_voxel_index(&self, position: Offset3d<i32>) -> Option<usize> {
+        let pos = Offset3d::new(
+            (position.x - self.origin_offset.x) as u32,
+            (position.y - self.origin_offset.y) as u32,
+            (position.z - self.origin_offset.z) as u32,
+        );
+        if pos.x >= self.size.width || pos.y >= self.size.height || pos.z >= self.size.depth {
+            return None;
+        }
+        unsafe { Some(self.get_voxel_index_unchecked(position)) }
+    }
+
+    #[inline]
+    unsafe fn get_voxel_index_unchecked(&self, position: Offset3d<i32>) -> usize {
         let (width, height) = {
             let size = self.size();
             (size.width as usize, size.height as usize)

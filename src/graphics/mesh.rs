@@ -1,7 +1,7 @@
 use super::{
     material, texture, Context, DrawCommand, DrawCommandList, Material, TargetFormat, Texture,
 };
-use crate::{ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3};
+use crate::{ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3, Zero};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
@@ -11,6 +11,17 @@ pub struct Vertex {
     pub color: Color<f32>,
     pub uv: Vector2<f32>,
 }
+
+impl Default for Vertex {
+    fn default() -> Self {
+        Self {
+            position: Vector3::zero(),
+            color: Color::white(),
+            uv: Vector2::zero(),
+        }
+    }
+}
+
 unsafe impl Bytes for Vertex {}
 
 #[derive(Debug)]

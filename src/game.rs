@@ -44,7 +44,13 @@ impl Game {
     pub fn new(settings: Settings) -> Result<Self, Error> {
         let graphics = graphics::Context::new().map_err(|error| Error::Graphics(error))?;
         let mut world = voxel::World::new(&graphics, settings.world_size);
-        world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(0));
+        world.set_voxel(Offset3d::new(-2, 0, 0), Voxel::Tile(0));
+        world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(1));
+        world.set_voxel(Offset3d::new(2, 0, 0), Voxel::Tile(2));
+        world.set_voxel(Offset3d::new(0, -2, 0), Voxel::Tile(3));
+        world.set_voxel(Offset3d::new(0, 2, 0), Voxel::Tile(4));
+        world.set_voxel(Offset3d::new(0, 0, -2), Voxel::Tile(5));
+        world.set_voxel(Offset3d::new(0, 0, 2), Voxel::Tile(6));
         world.generate_mesh();
         Ok(Self {
             settings,
