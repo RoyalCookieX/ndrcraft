@@ -53,6 +53,12 @@ impl Game {
     }
 
     pub fn run(self) -> Result<(), Error> {
+        #[inline]
+        fn get_projection(size: Extent2d<u32>) -> graphics::mesh::Projection {
+            let aspect = size.width as f32 / size.height as f32;
+            graphics::mesh::Projection::new_perspective(aspect, Deg(120.0), 0.0001, 100.0)
+        }
+
         // create event_loop and window from settings
         let event_loop = EventLoop::new();
         let window = {
@@ -83,12 +89,18 @@ impl Game {
             .map_err(|error| Error::Graphics(error.into()))?;
 
         // create renderers
-        let mut mesh_renderer = self
-            .graphics
-            .create_mesh_renderer(render_target.output_format());
+        let mut mesh_renderer = self.graphics.create_mesh_renderer(
+            render_target.output_format(),
+            get_projection(window.inner_size().into()),
+        );
+        mesh_renderer.set_view(
+            Matrix4::from_translation(Vector3::new(-1.0, 0.0, 0.0))
+                .inverse_transform()
+                .unwrap(),
+        );
 
         // create renderables
-        let mut mesh = self.graphics.create_mesh(&[
+        let mesh = self.graphics.create_mesh(&[
             graphics::mesh::Vertex {
                 position: Vector3::new(-0.5, -0.5, 0.0),
                 color: Color::white(),
@@ -112,7 +124,7 @@ impl Game {
             graphics::texture::Size::D2(Extent2d::new(2, 2)),
             graphics::texture::Format::Rgba8Unorm,
             Some(graphics::texture::Sampler::new(
-                graphics::texture::FilterMode::Nearest,
+                graphics::texture::FilterMode::Linear,
                 graphics::texture::AddressMode::ClampToEdge,
             )),
             Some(&[
@@ -124,6 +136,7 @@ impl Game {
         )?;
 
         let t0 = std::time::Instant::now();
+        let mut transform = Matrix4::identity();
 
         event_loop.run(move |event, _, flow| match event {
             // main events
@@ -131,7 +144,8 @@ impl Game {
             Event::MainEventsCleared => {
                 let t1 = std::time::Instant::now();
                 let t = t1.duration_since(t0).as_secs_f32();
-                mesh.vertices[1].position.x = t.sin() * 0.5;
+                let val = (t.sin() * 0.5) - 1.0;
+                transform = Matrix4::from_translation(Vector3::new(0.0, 0.0, val));
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -145,16 +159,12 @@ impl Game {
                 WindowEvent::Resized(_) => {
                     let window_size = window.inner_size().into();
                     log_on_err!(render_target.set_size(window_size));
+                    mesh_renderer.set_projection(get_projection(window_size));
                 }
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                mesh_renderer.draw_mesh(
-                    Matrix4::from_angle_z(crate::Deg(-40.0)),
-                    &mesh,
-                    material,
-                    Some(&texture),
-                );
+                mesh_renderer.draw_mesh(transform, &mesh, material, Some(&texture));
                 log_on_err!(render_target.draw_pass(Some(Color::black()), mesh_renderer.submit()));
             }
             _ => {}

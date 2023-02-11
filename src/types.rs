@@ -302,6 +302,12 @@ pub unsafe trait Bytes: Copy + Sized {
     }
 }
 
+pub unsafe trait ByteArray<const SIZE: usize>: Bytes {
+    fn as_byte_array(&self) -> &[u8; SIZE] {
+        unsafe { mem::transmute::<&Self, &[u8; SIZE]>(self) }
+    }
+}
+
 impl_bytes!(bool);
 impl_bytes!(i8);
 impl_bytes!(u8);
@@ -327,6 +333,15 @@ impl_bytes!(Vector4<T>);
 impl_bytes!(Quaternion<T>);
 impl_bytes!(Matrix4<T>);
 
+unsafe impl<T: Bytes, const SIZE: usize> Bytes for [T; SIZE] {
+    fn as_bytes(&self) -> &[u8] {
+        let ptr = self.as_ptr();
+        let data = ptr as *const u8;
+        let len = mem::size_of::<T>() * self.len();
+        unsafe { slice::from_raw_parts(data, len) }
+    }
+}
+
 unsafe impl<T: Bytes> Bytes for &[T] {
     fn as_bytes(&self) -> &[u8] {
         let ptr = self.as_ptr();
@@ -335,3 +350,5 @@ unsafe impl<T: Bytes> Bytes for &[T] {
         unsafe { slice::from_raw_parts(data, len) }
     }
 }
+
+unsafe impl<T: Bytes, const SIZE: usize> ByteArray<SIZE> for [T; SIZE] {}

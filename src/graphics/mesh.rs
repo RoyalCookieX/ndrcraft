@@ -1,5 +1,5 @@
 use super::{material, texture, Context, DrawCommand, Material, Texture};
-use crate::{error_cast, Bytes, Color, Matrix4, SquareMatrix, Vector2, Vector3};
+use crate::{error_cast, ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
@@ -124,6 +124,56 @@ impl Mesh {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Projection {
+    Perspective {
+        aspect: f32,
+        vertical_fov: Deg<f32>,
+        near: f32,
+        far: f32,
+    },
+}
+
+impl Projection {
+    pub const fn new_perspective(aspect: f32, vertical_fov: Deg<f32>, near: f32, far: f32) -> Self {
+        Self::Perspective {
+            aspect,
+            vertical_fov,
+            near,
+            far,
+        }
+    }
+}
+
+impl From<Projection> for Matrix4<f32> {
+    fn from(value: Projection) -> Self {
+        match value {
+            Projection::Perspective {
+                aspect,
+                vertical_fov,
+                near,
+                far,
+            } => cgmath::perspective(vertical_fov, aspect, near, far),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct Global {
+    view: Matrix4<f32>,
+    projection: Matrix4<f32>,
+}
+unsafe impl Bytes for Global {}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct Push {
+    model: Matrix4<f32>,
+}
+unsafe impl Bytes for Push {}
+unsafe impl ByteArray<64> for Push {}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PipelineIndex {
     material: Material,
@@ -139,7 +189,7 @@ struct DrawMeshState {
     mesh_vertex_count: u32,
     texture: Rc<wgpu::Texture>,
     sampler: Rc<wgpu::Sampler>,
-    transform: Matrix4<f32>,
+    push_data: Push,
 }
 
 #[derive(Debug)]
@@ -149,9 +199,12 @@ pub struct Renderer {
     default_texture: Rc<Texture>,
     output_format: wgpu::TextureFormat,
     module: wgpu::ShaderModule,
+    global_data: Global,
+    global_buffer: wgpu::Buffer,
+    global_bind_group_layout: wgpu::BindGroupLayout,
+    global_bind_group: Rc<wgpu::BindGroup>,
     samplers: HashMap<texture::Sampler, Rc<wgpu::Sampler>>,
     texture_bind_group_layouts: HashMap<wgpu::TextureViewDimension, wgpu::BindGroupLayout>,
-    push_data: Matrix4<f32>,
     pipelines: HashMap<PipelineIndex, Rc<wgpu::RenderPipeline>>,
     draw_states: Vec<DrawMeshState>,
 }
@@ -161,17 +214,51 @@ impl Renderer {
         texture::FilterMode::Linear,
         texture::AddressMode::ClampToEdge,
     );
+    const PUSH_SIZE: usize = 64;
 
     fn new(
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         default_texture: Rc<Texture>,
         output_format: wgpu::TextureFormat,
+        projection: Projection,
     ) -> Self {
         let module = device.create_shader_module(wgpu::include_wgsl!("mesh.wgsl"));
+        let global_data = Global {
+            view: Matrix4::identity(),
+            projection: projection.into(),
+        };
+        let global_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: mem::size_of::<Global>() as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&global_buffer, 0, global_data.as_bytes());
+        let global_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let global_bind_group = Rc::new(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &global_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: global_buffer.as_entire_binding(),
+            }],
+        }));
         let samplers = HashMap::new();
         let texture_bind_group_layouts = HashMap::new();
-        let push_data = Matrix4::identity();
         let pipelines = HashMap::new();
         let draw_states = Vec::new();
         Self {
@@ -180,12 +267,23 @@ impl Renderer {
             default_texture,
             output_format,
             module,
+            global_data,
+            global_buffer,
+            global_bind_group_layout,
+            global_bind_group,
             samplers,
             texture_bind_group_layouts,
-            push_data,
             pipelines,
             draw_states,
         }
+    }
+
+    pub fn set_view(&mut self, view: Matrix4<f32>) {
+        self.global_data.view = view.into();
+    }
+
+    pub fn set_projection(&mut self, projection: Projection) {
+        self.global_data.projection = projection.into();
     }
 
     pub fn draw_mesh(
@@ -265,10 +363,10 @@ impl Renderer {
                         self.device
                             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                                 label: None,
-                                bind_group_layouts: &[texture_bind_group_layout],
+                                bind_group_layouts: &[&self.global_bind_group_layout, texture_bind_group_layout],
                                 push_constant_ranges: &[wgpu::PushConstantRange {
                                     stages: wgpu::ShaderStages::VERTEX,
-                                    range: 0..256,
+                                    range: 0..Self::PUSH_SIZE as u32,
                                 }],
                             });
                     Rc::new(
@@ -326,6 +424,7 @@ impl Renderer {
         let texture = texture.map_or(self.default_texture.handle().clone(), |texture| {
             texture.handle().clone()
         });
+        let push_data = Push { model: transform };
         let draw_state = DrawMeshState {
             mesh_buffer,
             mesh_buffer_range,
@@ -334,12 +433,14 @@ impl Renderer {
             texture,
             view_dimension,
             sampler,
-            transform,
+            push_data,
         };
         self.draw_states.push(draw_state);
     }
 
-    pub(crate) fn submit(&mut self) -> Vec<DrawCommand<64>> {
+    pub(crate) fn submit(&mut self) -> Vec<DrawCommand<{ Self::PUSH_SIZE }>> {
+        self.queue
+            .write_buffer(&self.global_buffer, 0, self.global_data.as_bytes());
         let mut draw_commands = Vec::new();
         for draw_state in self.draw_states.drain(..) {
             let material = (&draw_state.material).clone();
@@ -349,33 +450,37 @@ impl Renderer {
                 view_dimension,
             };
             let pipeline = self.pipelines[&pipeline_index].clone();
-            let layout = &self.texture_bind_group_layouts[&view_dimension];
+            let texture_bind_group_layout = &self.texture_bind_group_layouts[&view_dimension];
             let texture = (&draw_state.texture).clone();
             let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             let sampler = (&draw_state.sampler).clone();
-            let bind_group = Rc::new(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&texture_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
-                    },
-                ],
-            }));
-            let mut push_data = [0u8; 64];
-            push_data.copy_from_slice(draw_state.transform.as_bytes());
+            let texture_bind_group =
+                Rc::new(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: texture_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&texture_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&sampler),
+                        },
+                    ],
+                }));
+            let push_data = draw_state.push_data.as_byte_array().clone();
             let buffer = draw_state.mesh_buffer.clone();
             let buffer_range = draw_state.mesh_buffer_range;
             let vertex_count = draw_state.mesh_vertex_count;
             draw_commands.push(DrawCommand::SetPipeline(pipeline));
             draw_commands.push(DrawCommand::SetBindGroup {
                 index: 0,
-                bind_group,
+                bind_group: self.global_bind_group.clone(),
+            });
+            draw_commands.push(DrawCommand::SetBindGroup {
+                index: 1,
+                bind_group: texture_bind_group,
             });
             draw_commands.push(DrawCommand::SetPushConstant {
                 stages: wgpu::ShaderStages::VERTEX,
@@ -401,12 +506,17 @@ impl Context {
         Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
     }
 
-    pub(crate) fn create_mesh_renderer(&self, output_format: wgpu::TextureFormat) -> Renderer {
+    pub(crate) fn create_mesh_renderer(
+        &self,
+        output_format: wgpu::TextureFormat,
+        projection: Projection,
+    ) -> Renderer {
         Renderer::new(
             self.device.clone(),
             self.queue.clone(),
             self.default_texture.clone(),
             output_format,
+            projection,
         )
     }
 }

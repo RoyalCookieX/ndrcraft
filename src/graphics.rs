@@ -68,7 +68,7 @@ pub struct Context {
 impl Context {
     pub(crate) fn new() -> Result<Self, Error> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends: wgpu::Backends::VULKAN,
             dx12_shader_compiler: wgpu::Dx12Compiler::default(),
         });
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
