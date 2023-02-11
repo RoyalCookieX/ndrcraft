@@ -1,4 +1,4 @@
-use crate::{Extent3d, Offset3d};
+use crate::{graphics, Color, Extent3d, Offset3d, Vector2, Vector3};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Voxel {
@@ -29,14 +29,205 @@ impl<'a> Iterator for WorldIterator<'a> {
     }
 }
 
+use graphics::mesh::Vertex;
+const CUBE_VERTICES: [Vertex; 36] = [
+    // left
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    // right
+    Vertex {
+        position: Vector3::new(0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    // bottom
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    // top
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    // far
+    Vertex {
+        position: Vector3::new(0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, -0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    // near
+    Vertex {
+        position: Vector3::new(0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+    Vertex {
+        position: Vector3::new(0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(1.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, 0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 1.0),
+    },
+    Vertex {
+        position: Vector3::new(-0.5, -0.5, 0.5),
+        color: Color::new(1.0, 1.0, 1.0, 1.0),
+        uv: Vector2::new(0.0, 0.0),
+    },
+];
+
 pub struct World {
     size: Extent3d<u32>,
     origin_offset: Offset3d<i32>,
     voxels: Vec<Voxel>,
+    mesh: graphics::Mesh,
 }
 
 impl World {
-    pub(crate) fn new(size: Extent3d<u32>) -> Self {
+    pub(crate) fn new(graphics: &graphics::Context, size: Extent3d<u32>) -> Self {
         let half_size = Extent3d::new(
             size.width as i64 / 2,
             size.height as i64 / 2,
@@ -48,15 +239,21 @@ impl World {
             -half_size.depth as i32,
         );
         let voxels = vec![Voxel::default(); (size.width * size.height * size.depth) as usize];
+        let mesh = graphics.create_mesh(&[]);
         Self {
             size,
             origin_offset,
             voxels,
+            mesh,
         }
     }
 
     pub fn size(&self) -> Extent3d<u32> {
         self.size
+    }
+
+    pub fn mesh(&self) -> &graphics::Mesh {
+        &self.mesh
     }
 
     pub fn get_voxel(&self, position: Offset3d<i32>) -> Option<&Voxel> {
@@ -72,6 +269,10 @@ impl World {
 
     pub fn iter(&self) -> WorldIterator<'_> {
         WorldIterator::new(self)
+    }
+
+    pub fn generate_mesh(&mut self) {
+        self.mesh.vertices.extend_from_slice(&CUBE_VERTICES)
     }
 
     #[inline]

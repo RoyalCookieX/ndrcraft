@@ -1,6 +1,3 @@
-// TODO: deny dead code later
-#![allow(dead_code)]
-
 mod game;
 mod graphics;
 mod types;

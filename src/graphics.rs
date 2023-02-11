@@ -50,7 +50,6 @@ pub enum Error {
     RequestAdapterFailed,
     RequestDeviceFailed(wgpu::RequestDeviceError),
     Texture(texture::Error),
-    Mesh(mesh::Error),
     RenderTarget(render_target::Error),
 }
 

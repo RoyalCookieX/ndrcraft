@@ -43,8 +43,9 @@ pub struct Game {
 impl Game {
     pub fn new(settings: Settings) -> Result<Self, Error> {
         let graphics = graphics::Context::new().map_err(|error| Error::Graphics(error))?;
-        let mut world = voxel::World::new(settings.world_size);
+        let mut world = voxel::World::new(&graphics, settings.world_size);
         world.set_voxel(Offset3d::new(0, 0, 0), Voxel::Tile(0));
+        world.generate_mesh();
         Ok(Self {
             settings,
             graphics,
@@ -56,7 +57,7 @@ impl Game {
         #[inline]
         fn get_projection(size: Extent2d<u32>) -> graphics::mesh::Projection {
             let aspect = size.width as f32 / size.height as f32;
-            graphics::mesh::Projection::new_perspective(aspect, Deg(120.0), 0.0001, 100.0)
+            graphics::mesh::Projection::new_perspective(aspect, Deg(70.0), 0.0001, 100.0)
         }
 
         // create event_loop and window from settings
@@ -94,29 +95,12 @@ impl Game {
             get_projection(window.inner_size().into()),
         );
         mesh_renderer.set_view(
-            Matrix4::from_translation(Vector3::new(-1.0, 0.0, 0.0))
+            Matrix4::from_translation(Vector3::new(0.0, 1.0, 3.0))
                 .inverse_transform()
                 .unwrap(),
         );
 
         // create renderables
-        let mesh = self.graphics.create_mesh(&[
-            graphics::mesh::Vertex {
-                position: Vector3::new(-0.5, -0.5, 0.0),
-                color: Color::white(),
-                uv: Vector2::new(0.0, 0.0),
-            },
-            graphics::mesh::Vertex {
-                position: Vector3::new(0.0, 0.5, 0.0),
-                color: Color::white(),
-                uv: Vector2::new(0.5, 1.0),
-            },
-            graphics::mesh::Vertex {
-                position: Vector3::new(0.5, -0.5, 0.0),
-                color: Color::white(),
-                uv: Vector2::new(1.0, 0.0),
-            },
-        ])?;
         let material = graphics::Material {
             blend: graphics::material::BlendMode::Opaque,
         };
@@ -144,8 +128,7 @@ impl Game {
             Event::MainEventsCleared => {
                 let t1 = std::time::Instant::now();
                 let t = t1.duration_since(t0).as_secs_f32();
-                let val = (t.sin() * 0.5) - 1.0;
-                transform = Matrix4::from_translation(Vector3::new(0.0, 0.0, val));
+                transform = Matrix4::from_angle_y(Deg(t * 30.0));
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -164,7 +147,7 @@ impl Game {
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                mesh_renderer.draw_mesh(transform, &mesh, material, Some(&texture));
+                mesh_renderer.draw_mesh(transform, &self.world.mesh(), material, Some(&texture));
                 log_on_err!(render_target.draw_pass(Some(Color::black()), mesh_renderer.submit()));
             }
             _ => {}

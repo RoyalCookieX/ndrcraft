@@ -1,5 +1,5 @@
 use super::{material, texture, Context, DrawCommand, Material, Texture};
-use crate::{error_cast, ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3};
+use crate::{ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
@@ -39,13 +39,6 @@ impl BufferInfo {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Error {
-    VerticesInvalid,
-}
-
-error_cast!(Mesh => super::Error);
-
 #[derive(Debug)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
@@ -56,13 +49,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    fn new(
-        device: Rc<wgpu::Device>,
-        queue: Rc<wgpu::Queue>,
-        vertices: &[Vertex],
-    ) -> Result<Self, Error> {
-        Self::validate_vertices(&vertices)?;
-
+    fn new(device: Rc<wgpu::Device>, queue: Rc<wgpu::Queue>, vertices: &[Vertex]) -> Self {
         let vertices = vertices.to_owned();
         let buffer_info = BufferInfo::new(&vertices);
         let buffer_size = buffer_info.aligned_size;
@@ -70,37 +57,29 @@ impl Mesh {
         Self::flush_buffer(&queue, &buffer_info, &buffer, &vertices);
         let buffer_info = RefCell::new(buffer_info);
         let buffer = RefCell::new(buffer);
-        Ok(Self {
+        Self {
             vertices,
             device,
             queue,
             buffer_info,
             buffer,
-        })
+        }
     }
 
     pub(crate) fn flush(&self) {
         let buffer_info = BufferInfo::new(&self.vertices);
         let buffer_size = self.buffer_info.borrow().aligned_size;
         if buffer_info.aligned_size > buffer_size {
-            self.buffer_info.replace(buffer_info);
             self.buffer
-                .replace(Self::create_buffer(&self.device, buffer_size));
+                .replace(Self::create_buffer(&self.device, buffer_info.aligned_size));
         }
+        self.buffer_info.replace(buffer_info);
         Self::flush_buffer(
             &self.queue,
             &self.buffer_info.borrow(),
             &self.buffer.borrow(),
             &self.vertices,
         );
-    }
-
-    #[inline]
-    fn validate_vertices(vertices: &[Vertex]) -> Result<(), Error> {
-        if vertices.len() == 0 {
-            return Err(Error::VerticesInvalid);
-        }
-        Ok(())
     }
 
     #[inline]
@@ -502,8 +481,8 @@ impl Renderer {
 }
 
 impl Context {
-    pub fn create_mesh(&self, vertices: &[Vertex]) -> Result<Mesh, super::Error> {
-        Mesh::new(self.device.clone(), self.queue.clone(), vertices).map_err(|error| error.into())
+    pub fn create_mesh(&self, vertices: &[Vertex]) -> Mesh {
+        Mesh::new(self.device.clone(), self.queue.clone(), vertices)
     }
 
     pub(crate) fn create_mesh_renderer(
