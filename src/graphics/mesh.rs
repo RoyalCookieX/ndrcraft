@@ -1,4 +1,6 @@
-use super::{material, texture, Context, DrawCommand, Material, Texture};
+use super::{
+    material, texture, Context, DrawCommand, DrawCommandList, Material, TargetFormat, Texture,
+};
 use crate::{ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
@@ -176,7 +178,7 @@ pub struct Renderer {
     device: Rc<wgpu::Device>,
     queue: Rc<wgpu::Queue>,
     default_texture: Rc<Texture>,
-    output_format: wgpu::TextureFormat,
+    target_format: TargetFormat,
     module: wgpu::ShaderModule,
     global_data: Global,
     global_buffer: wgpu::Buffer,
@@ -199,7 +201,7 @@ impl Renderer {
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         default_texture: Rc<Texture>,
-        output_format: wgpu::TextureFormat,
+        target_format: TargetFormat,
         projection: Projection,
     ) -> Self {
         let module = device.create_shader_module(wgpu::include_wgsl!("mesh.wgsl"));
@@ -244,7 +246,7 @@ impl Renderer {
             device,
             queue,
             default_texture,
-            output_format,
+            target_format,
             module,
             global_data,
             global_buffer,
@@ -334,6 +336,16 @@ impl Renderer {
             material,
             view_dimension,
         };
+        let depth_stencil = self
+            .target_format
+            .depth_format
+            .map(|format| wgpu::DepthStencilState {
+                format,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            });
         self.pipelines.entry(pipeline_index).or_insert_with(|| {
                     let blend = match material.blend {
                         material::BlendMode::Opaque => wgpu::BlendState::REPLACE,
@@ -371,7 +383,7 @@ impl Renderer {
                                     polygon_mode: wgpu::PolygonMode::Fill,
                                     conservative: false,
                                 },
-                                depth_stencil: None,
+                                depth_stencil,
                                 multisample: wgpu::MultisampleState {
                                     count: 1,
                                     mask: !0,
@@ -381,7 +393,7 @@ impl Renderer {
                                     module: &self.module,
                                     entry_point: "fs_main",
                                     targets: &[Some(wgpu::ColorTargetState {
-                                        format: self.output_format,
+                                        format: self.target_format.color_format,
                                         blend: Some(blend),
                                         write_mask: wgpu::ColorWrites::ALL,
                                     })],
@@ -417,7 +429,7 @@ impl Renderer {
         self.draw_states.push(draw_state);
     }
 
-    pub(crate) fn submit(&mut self) -> Vec<DrawCommand<{ Self::PUSH_SIZE }>> {
+    pub(crate) fn submit(&mut self) -> DrawCommandList<{ Self::PUSH_SIZE }> {
         self.queue
             .write_buffer(&self.global_buffer, 0, self.global_data.as_bytes());
         let mut draw_commands = Vec::new();
@@ -476,7 +488,10 @@ impl Renderer {
                 end: vertex_count,
             });
         }
-        draw_commands
+        DrawCommandList {
+            target_format: self.target_format,
+            draw_commands,
+        }
     }
 }
 
@@ -487,14 +502,14 @@ impl Context {
 
     pub(crate) fn create_mesh_renderer(
         &self,
-        output_format: wgpu::TextureFormat,
+        target_format: TargetFormat,
         projection: Projection,
     ) -> Renderer {
         Renderer::new(
             self.device.clone(),
             self.queue.clone(),
             self.default_texture.clone(),
-            output_format,
+            target_format,
             projection,
         )
     }

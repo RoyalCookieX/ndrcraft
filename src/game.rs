@@ -86,16 +86,16 @@ impl Game {
         // create render target
         let mut render_target = self
             .graphics
-            .create_render_target(&window, self.settings.vsync)
+            .create_render_target(&window, self.settings.vsync, true)
             .map_err(|error| Error::Graphics(error.into()))?;
 
         // create renderers
         let mut mesh_renderer = self.graphics.create_mesh_renderer(
-            render_target.output_format(),
+            render_target.target_format(),
             get_projection(window.inner_size().into()),
         );
         mesh_renderer.set_view(
-            Matrix4::from_translation(Vector3::new(0.0, 1.0, 3.0))
+            Matrix4::from_translation(Vector3::new(0.0, 0.0, 3.0))
                 .inverse_transform()
                 .unwrap(),
         );
@@ -128,7 +128,8 @@ impl Game {
             Event::MainEventsCleared => {
                 let t1 = std::time::Instant::now();
                 let t = t1.duration_since(t0).as_secs_f32();
-                transform = Matrix4::from_angle_y(Deg(t * 30.0));
+                transform = Matrix4::from_angle_y(Deg(t * 30.0))
+                    * Matrix4::from_translation(Vector3::new(0.0, t.sin(), 0.0));
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -148,7 +149,11 @@ impl Game {
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
                 mesh_renderer.draw_mesh(transform, &self.world.mesh(), material, Some(&texture));
-                log_on_err!(render_target.draw_pass(Some(Color::black()), mesh_renderer.submit()));
+                log_on_err!(render_target.draw_pass(
+                    Some(Color::black()),
+                    Some(1.0),
+                    mesh_renderer.submit()
+                ));
             }
             _ => {}
         });

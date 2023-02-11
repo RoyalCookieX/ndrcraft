@@ -23,6 +23,13 @@ use pollster::block_on;
 use std::rc::Rc;
 use winit::window::Window;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct TargetFormat {
+    pub color_format: wgpu::TextureFormat,
+    pub depth_format: Option<wgpu::TextureFormat>,
+}
+
+#[derive(Debug)]
 pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 256> {
     SetPipeline(Rc<wgpu::RenderPipeline>),
     SetBindGroup {
@@ -43,6 +50,12 @@ pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 256> {
         start: u32,
         end: u32,
     },
+}
+
+#[derive(Debug)]
+pub(crate) struct DrawCommandList<const PUSH_SIZE: usize> {
+    pub target_format: TargetFormat,
+    pub draw_commands: Vec<DrawCommand<PUSH_SIZE>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -125,6 +138,7 @@ impl Context {
         &self,
         window: &Window,
         vsync: bool,
+        depth: bool,
     ) -> Result<RenderTarget, Error> {
         RenderTarget::new(
             &self.instance,
@@ -133,6 +147,7 @@ impl Context {
             self.queue.clone(),
             window,
             vsync,
+            depth,
         )
         .map_err(|error| error.into())
     }
