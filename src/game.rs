@@ -151,47 +151,58 @@ impl Game {
         };
 
         // timekeeping data (delta time, frame count)
+        let mut frame_count = 0u64;
         let start = time::Instant::now();
-        let mut delta_time = 0.0;
+        let mut delta_time = time::Duration::default();
         let mut last_tick = start;
         let mut last_second = start;
-        let mut frame_count = 0u128;
 
         // used to update the controller
         let lateral_speed = 10.0;
         let vertical_speed = 10.0;
-        let look_speed = Vector2::new(10.0, 15.0);
+        let look_speed = Vector2::new(0.2, 0.2);
         let mut lateral_direction = Vector2::zero();
         let mut vertical_direction = 0.0;
+        let mut look_delta = Vector2::new(0.0, 0.0);
 
         event_loop.run(move |event, _, flow| match event {
             // main events
             Event::NewEvents(_) => {
+                look_delta = Vector2::zero();
+
                 // get delta time
-                delta_time = last_tick.elapsed().as_secs_f32();
+                delta_time = last_tick.elapsed();
                 last_tick = time::Instant::now();
 
                 // update title every second
-                if last_second.elapsed().as_secs_f32() > 1.0 {
+                if last_second.elapsed().as_secs() >= 1 {
                     last_second = time::Instant::now();
-                    let fps = frame_count as f32 / start.elapsed().as_secs_f32();
-                    let ms = delta_time * 1000.0;
-                    let title = format!("{} [{fps:.2} fps, {ms:.2} ms]", Self::TITLE);
+                    let fps = frame_count / start.elapsed().as_secs();
+                    let ms = delta_time.as_millis();
+                    let title = format!("{} [{fps} fps, {ms} ms]", Self::TITLE);
                     window.set_title(&title);
                 }
 
                 frame_count += 1;
             }
             Event::MainEventsCleared => {
+                let delta_time = delta_time.as_secs_f32();
+
                 // move controller
                 lateral_direction.normalize();
+                look_delta.normalize();
+
                 let lateral_translation =
                     Vector3::new(lateral_direction.x, 0.0, lateral_direction.y)
                         * (lateral_speed * delta_time);
                 let vertical_translation =
                     Vector3::unit_y() * vertical_direction * vertical_speed * delta_time;
+                let look_direction = look_delta.mul_element_wise(look_speed);
                 self.controller.translate_local(lateral_translation);
                 self.controller.translate_global(vertical_translation);
+                self.controller.rotate_yaw(-Deg(look_direction.x));
+                self.controller.rotate_pitch(-Deg(look_direction.y));
+
                 mesh_renderer
                     .set_view(self.controller.get_transform().inverse_transform().unwrap());
 
@@ -257,11 +268,8 @@ impl Game {
             // mouse motion events
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta: (x, y) } => {
-                    let (x, y) = (x as f32, y as f32);
-                    self.controller
-                        .rotate_yaw(-Deg(x * look_speed.x * delta_time));
-                    self.controller
-                        .rotate_pitch(-Deg(y * look_speed.y * delta_time));
+                    look_delta.x += x as f32;
+                    look_delta.y += y as f32;
                 }
                 _ => {}
             },
