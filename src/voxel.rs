@@ -1,4 +1,5 @@
 use crate::{graphics, impl_from_error, Color, Extent2d, Extent3d, Offset3d, Vector2, Vector3};
+use bitflags::bitflags;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Voxel {
@@ -7,117 +8,186 @@ pub enum Voxel {
     Tile(u32),
 }
 
-pub struct WorldIterator<'a> {
-    index: usize,
-    world: &'a World,
+#[derive(Clone, Copy, Debug)]
+#[repr(u8)]
+enum Face {
+    PosX,
+    NegX,
+    PosY,
+    NegY,
+    PosZ,
+    NegZ,
 }
 
-impl<'a> WorldIterator<'a> {
-    fn new(world: &'a World) -> Self {
-        Self { index: 0, world }
+impl Face {
+    fn from_index(index: u8) -> Self {
+        match index {
+            0 => Self::PosX,
+            1 => Self::NegX,
+            2 => Self::PosY,
+            3 => Self::NegY,
+            4 => Self::PosZ,
+            5 => Self::NegZ,
+            _ => unimplemented!(),
+        }
     }
 }
 
-impl<'a> Iterator for WorldIterator<'a> {
-    type Item = (Offset3d<i32>, &'a Voxel);
+impl Face {
+    const MAX_COUNT: u8 = 6;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let position = self.world.get_voxel_position(self.index)?;
-        self.index += 1;
-        let voxel = self.world.get_voxel(position)?;
-        Some((position, voxel))
+    fn opposite(&self) -> Self {
+        match self {
+            Self::PosX => Self::NegX,
+            Self::NegX => Self::PosX,
+            Self::PosY => Self::NegY,
+            Self::NegY => Self::PosY,
+            Self::PosZ => Self::NegZ,
+            Self::NegZ => Self::PosZ,
+        }
+    }
+
+    fn get_vertex_positions(&self) -> [Vector3<f32>; 6] {
+        match *self {
+            Face::PosX => [
+                Vector3::new(0.5, -0.5, -0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(0.5, -0.5, 0.5),
+            ],
+            Face::NegX => [
+                Vector3::new(-0.5, -0.5, -0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+            ],
+            Face::PosY => [
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+            ],
+            Face::NegY => [
+                Vector3::new(-0.5, -0.5, -0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, -0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, -0.5),
+            ],
+            Face::PosZ => [
+                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(-0.5, -0.5, 0.5),
+            ],
+            Face::NegZ => [
+                Vector3::new(0.5, -0.5, -0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(-0.5, -0.5, -0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(-0.5, -0.5, -0.5),
+            ],
+        }
+    }
+
+    fn get_vertex_uvs(&self) -> [Vector2<f32>; 6] {
+        match self {
+            Face::PosX | Face::PosZ => [
+                Vector2::new(1.0, 0.667),
+                Vector2::new(1.0, 0.333),
+                Vector2::new(0.0, 0.667),
+                Vector2::new(1.0, 0.333),
+                Vector2::new(0.0, 0.333),
+                Vector2::new(0.0, 0.667),
+            ],
+            Face::NegX | Face::NegZ => [
+                Vector2::new(0.0, 0.667),
+                Vector2::new(0.0, 0.333),
+                Vector2::new(1.0, 0.667),
+                Vector2::new(0.0, 0.333),
+                Vector2::new(1.0, 0.333),
+                Vector2::new(1.0, 0.667),
+            ],
+            Face::PosY => [
+                Vector2::new(1.0, 0.333),
+                Vector2::new(1.0, 0.0),
+                Vector2::new(0.0, 0.333),
+                Vector2::new(1.0, 0.0),
+                Vector2::new(0.0, 0.0),
+                Vector2::new(0.0, 0.333),
+            ],
+            Face::NegY => [
+                Vector2::new(0.0, 1.0),
+                Vector2::new(0.0, 0.667),
+                Vector2::new(1.0, 1.0),
+                Vector2::new(0.0, 0.667),
+                Vector2::new(1.0, 0.667),
+                Vector2::new(1.0, 1.0),
+            ],
+        }
+    }
+
+    fn get_adjacent_voxel_position(&self) -> Offset3d<i32> {
+        match *self {
+            Face::PosX => Offset3d::new(1, 0, 0),
+            Face::NegX => Offset3d::new(-1, 0, 0),
+            Face::PosY => Offset3d::new(0, 1, 0),
+            Face::NegY => Offset3d::new(0, -1, 0),
+            Face::PosZ => Offset3d::new(0, 0, 1),
+            Face::NegZ => Offset3d::new(0, 0, -1),
+        }
     }
 }
 
-const CUBE_VERTEX_COUNT: usize = 36;
-const CUBE_VERTEX_POSITIONS: [Vector3<f32>; CUBE_VERTEX_COUNT] = [
-    // left
-    Vector3::new(-0.5, -0.5, -0.5),
-    Vector3::new(-0.5, 0.5, -0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-    Vector3::new(-0.5, 0.5, -0.5),
-    Vector3::new(-0.5, 0.5, 0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-    // right
-    Vector3::new(0.5, -0.5, -0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(0.5, -0.5, 0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(0.5, 0.5, 0.5),
-    Vector3::new(0.5, -0.5, 0.5),
-    // bottom
-    Vector3::new(-0.5, -0.5, -0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-    Vector3::new(0.5, -0.5, -0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-    Vector3::new(0.5, -0.5, 0.5),
-    Vector3::new(0.5, -0.5, -0.5),
-    // top
-    Vector3::new(0.5, 0.5, 0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(-0.5, 0.5, 0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(-0.5, 0.5, -0.5),
-    Vector3::new(-0.5, 0.5, 0.5),
-    // far
-    Vector3::new(0.5, -0.5, -0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(-0.5, -0.5, -0.5),
-    Vector3::new(0.5, 0.5, -0.5),
-    Vector3::new(-0.5, 0.5, -0.5),
-    Vector3::new(-0.5, -0.5, -0.5),
-    // near
-    Vector3::new(0.5, -0.5, 0.5),
-    Vector3::new(0.5, 0.5, 0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-    Vector3::new(0.5, 0.5, 0.5),
-    Vector3::new(-0.5, 0.5, 0.5),
-    Vector3::new(-0.5, -0.5, 0.5),
-];
-const CUBE_VERTEX_UVS: [Vector2<f32>; CUBE_VERTEX_COUNT] = [
-    // -X
-    Vector2::new(0.0, 0.667),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(1.0, 0.667),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(1.0, 0.667),
-    // +X
-    Vector2::new(1.0, 0.667),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(0.0, 0.667),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(0.0, 0.667),
-    // -Y
-    Vector2::new(0.0, 1.0),
-    Vector2::new(0.0, 0.667),
-    Vector2::new(1.0, 1.0),
-    Vector2::new(0.0, 0.667),
-    Vector2::new(1.0, 0.667),
-    Vector2::new(1.0, 1.0),
-    // +Y
-    Vector2::new(1.0, 0.333),
-    Vector2::new(1.0, 0.0),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(1.0, 0.0),
-    Vector2::new(0.0, 0.0),
-    Vector2::new(0.0, 0.333),
-    // -Z
-    Vector2::new(0.0, 0.667),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(1.0, 0.667),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(1.0, 0.667),
-    // +Z
-    Vector2::new(1.0, 0.667),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(0.0, 0.667),
-    Vector2::new(1.0, 0.333),
-    Vector2::new(0.0, 0.333),
-    Vector2::new(0.0, 0.667),
-];
+bitflags! {
+    #[repr(transparent)]
+    struct Faces: u8 {
+        const POS_X = (1 << 0);
+        const NEG_X = (1 << 1);
+        const POS_Y = (1 << 2);
+        const NEG_Y = (1 << 3);
+        const POS_Z = (1 << 4);
+        const NEG_Z = (1 << 5);
+    }
+}
+
+impl From<Face> for Faces {
+    fn from(value: Face) -> Self {
+        match value {
+            Face::PosX => Self::POS_X,
+            Face::NegX => Self::NEG_X,
+            Face::PosY => Self::POS_Y,
+            Face::NegY => Self::NEG_Y,
+            Face::PosZ => Self::POS_Z,
+            Face::NegZ => Self::NEG_Z,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct VoxelData {
+    voxel: Voxel,
+    faces: Faces,
+}
+
+impl Default for VoxelData {
+    fn default() -> Self {
+        Self {
+            voxel: Default::default(),
+            faces: Faces::empty(),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextureLayout {
@@ -140,7 +210,7 @@ impl_from_error!(graphics::texture::Error, WorldError, Texture);
 pub struct World {
     size: Extent3d<u32>,
     origin_offset: Offset3d<i32>,
-    voxels: Vec<Voxel>,
+    voxel_data: Vec<VoxelData>,
     max_tiles: u32,
     mesh: graphics::Mesh,
     texture: graphics::Texture,
@@ -164,7 +234,8 @@ impl World {
             -half_size.height as i32,
             -half_size.depth as i32,
         );
-        let voxels = vec![Voxel::default(); (size.width * size.height * size.depth) as usize];
+        let voxel_data =
+            vec![VoxelData::default(); (size.width * size.height * size.depth) as usize];
         let mesh = graphics.create_mesh(&[]);
         let texture_size = graphics::texture::Size::D2(Extent2d::new(
             Self::TEXTURE_SIZE.width * max_tiles,
@@ -185,7 +256,7 @@ impl World {
             size,
             origin_offset,
             max_tiles,
-            voxels,
+            voxel_data,
             mesh,
             texture,
         })
@@ -204,7 +275,8 @@ impl World {
     }
 
     pub fn get_voxel(&self, position: Offset3d<i32>) -> Option<&Voxel> {
-        self.voxels.get(self.get_voxel_index(position)?)
+        self.get_voxel_data(position)
+            .map(|voxel_data| &voxel_data.voxel)
     }
 
     pub fn set_voxel(
@@ -212,15 +284,58 @@ impl World {
         position: Offset3d<i32>,
         voxel: Voxel,
     ) -> Result<Voxel, WorldError> {
-        let Some(index) = self.get_voxel_index(position) else { return Err(WorldError::PositionInvalid(position)); };
+        let Some(target_index) = self.get_voxel_index(position) else { return Err(WorldError::PositionInvalid(position)); };
         if let Voxel::Tile(tile_index) = voxel {
             if tile_index >= self.max_tiles {
                 return Err(WorldError::TileIndexInvalid(tile_index));
             }
         }
-        let old_voxel = &mut self.voxels[index];
-        *old_voxel = voxel;
-        Ok(*old_voxel)
+
+        // set voxel
+        let old_voxel = self.voxel_data[target_index].voxel;
+        self.voxel_data[target_index].voxel = voxel;
+
+        // set faces
+        // iterate all target faces
+        for face_index in 0..Face::MAX_COUNT {
+            let face = Face::from_index(face_index);
+
+            // get voxel adjacent to face
+            let other_position = {
+                let adjacent = face.get_adjacent_voxel_position();
+                Offset3d::new(
+                    position.x + adjacent.x,
+                    position.y + adjacent.y,
+                    position.z + adjacent.z,
+                )
+            };
+            let Some(other_index) = self.get_voxel_index(other_position) else {
+                self.voxel_data[target_index].faces.insert(Faces::from(face));
+                continue;
+            };
+            let target_voxel = voxel;
+            let other_voxel = self.voxel_data[other_index].voxel;
+            match (target_voxel, other_voxel) {
+                (Voxel::Void, Voxel::Void) => {}
+                (Voxel::Void, Voxel::Tile(_)) => {
+                    self.voxel_data[other_index]
+                        .faces
+                        .insert(Faces::from(face.opposite()));
+                }
+                (Voxel::Tile(_), Voxel::Void) => {
+                    self.voxel_data[target_index]
+                        .faces
+                        .insert(Faces::from(face));
+                }
+                (Voxel::Tile(_), Voxel::Tile(_)) => {
+                    self.voxel_data[other_index]
+                        .faces
+                        .remove(Faces::from(face.opposite()));
+                }
+            }
+        }
+
+        Ok(old_voxel)
     }
 
     pub fn set_voxel_texture(
@@ -247,15 +362,11 @@ impl World {
         Ok(())
     }
 
-    pub fn iter(&self) -> WorldIterator<'_> {
-        WorldIterator::new(self)
-    }
-
     pub fn generate_mesh(&mut self) {
         self.mesh.vertices.clear();
         let mut staging = Vec::new();
-        for (voxel_position, voxel) in self.iter() {
-            match voxel {
+        for (voxel_position, voxel_data) in self.iter() {
+            match voxel_data.voxel {
                 Voxel::Void => continue,
                 Voxel::Tile(tile_index) => {
                     let world_position = Vector3::new(
@@ -263,20 +374,34 @@ impl World {
                         voxel_position.y as f32,
                         voxel_position.z as f32,
                     );
-                    staging.extend((0..CUBE_VERTEX_COUNT).into_iter().map(|vertex_index| {
-                        let position = CUBE_VERTEX_POSITIONS[vertex_index] + world_position;
-                        let color = Color::white();
-                        let unscaled_uv = CUBE_VERTEX_UVS[vertex_index];
-                        let uv = Vector2::new(
-                            (*tile_index as f32 + unscaled_uv.x) / self.max_tiles as f32,
-                            unscaled_uv.y,
-                        );
-                        graphics::mesh::Vertex::new(position, color, uv)
-                    }));
+                    for face_index in 0..Face::MAX_COUNT {
+                        let face = Face::from_index(face_index);
+                        if !voxel_data.faces.contains(Faces::from(face)) {
+                            continue;
+                        }
+                        let vertex_positions = face.get_vertex_positions();
+                        let vertex_uvs = face.get_vertex_uvs();
+                        staging.extend(vertex_positions.iter().zip(vertex_uvs.iter()).map(
+                            |(position, uv)| {
+                                let position = *position + world_position;
+                                let color = Color::white();
+                                let uv = Vector2::new(
+                                    (tile_index as f32 + uv.x) / self.max_tiles as f32,
+                                    uv.y,
+                                );
+                                graphics::mesh::Vertex::new(position, color, uv)
+                            },
+                        ));
+                    }
                 }
             }
         }
         self.mesh.vertices.extend_from_slice(&staging);
+    }
+
+    #[inline]
+    fn iter(&self) -> WorldIterator<'_> {
+        WorldIterator::new(self)
     }
 
     #[inline]
@@ -294,7 +419,7 @@ impl World {
 
     #[inline]
     fn get_voxel_position(&self, index: usize) -> Option<Offset3d<i32>> {
-        if index >= self.voxels.len() {
+        if index >= self.voxel_data.len() {
             None
         } else {
             unsafe { Some(self.get_voxel_position_unchecked(index)) }
@@ -333,5 +458,32 @@ impl World {
             (y - origin_y) as i32,
             (z - origin_z) as i32,
         )
+    }
+
+    #[inline]
+    fn get_voxel_data(&self, position: Offset3d<i32>) -> Option<&VoxelData> {
+        self.voxel_data.get(self.get_voxel_index(position)?)
+    }
+}
+
+struct WorldIterator<'a> {
+    index: usize,
+    world: &'a World,
+}
+
+impl<'a> WorldIterator<'a> {
+    fn new(world: &'a World) -> Self {
+        Self { index: 0, world }
+    }
+}
+
+impl<'a> Iterator for WorldIterator<'a> {
+    type Item = (Offset3d<i32>, &'a VoxelData);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let position = self.world.get_voxel_position(self.index)?;
+        self.index += 1;
+        let voxel_data = self.world.get_voxel_data(position)?;
+        Some((position, voxel_data))
     }
 }

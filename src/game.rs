@@ -71,7 +71,7 @@ impl Game {
         let height = (world.size().height / 2) as i32;
         let depth = (world.size().depth / 2) as i32;
         for z in -width..width {
-            for y in -height..height {
+            for y in -height..=0 {
                 for x in -depth..depth {
                     let threshold = (x as f32 * 0.12).sin() * 1.2 + (z as f32 * 0.05).cos() * 0.5;
                     if y as f32 > threshold {
@@ -90,6 +90,16 @@ impl Game {
                     world.set_voxel(Offset3d::new(x, y, z), Voxel::Tile(tile_index))?;
                 }
             }
+        }
+        world.set_voxel(Offset3d::new(-2, 5, 0), Voxel::Tile(0))?;
+        world.set_voxel(Offset3d::new(0, 5, 0), Voxel::Tile(1))?;
+        world.set_voxel(Offset3d::new(2, 5, 0), Voxel::Tile(2))?;
+        world.set_voxel(Offset3d::new(-2, -2, 0), Voxel::Void)?;
+        world.set_voxel(Offset3d::new(0, -2, 0), Voxel::Void)?;
+        world.set_voxel(Offset3d::new(2, -2, 0), Voxel::Void)?;
+        let void_pos = Offset3d::new(0, -4, 0);
+        if let Some(_) = world.get_voxel(void_pos) {
+            world.set_voxel(void_pos, Voxel::Void)?;
         }
         world.generate_mesh();
         let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(-30.0), Deg(0.0));

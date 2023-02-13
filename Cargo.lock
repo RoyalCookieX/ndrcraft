@@ -1136,11 +1136,11 @@ dependencies = [
 name = "ndrcraft"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "cgmath",
  "env_logger",
  "image",
  "log",
- "naga",
  "pollster",
  "wgpu",
  "winit",
