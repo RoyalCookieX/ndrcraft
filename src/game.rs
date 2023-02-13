@@ -1,10 +1,11 @@
-use crate::{graphics, impl_from_error, types::*, voxel, Voxel};
+use crate::{graphics, impl_from_error, types::*, voxel, Controller, Voxel};
+use std::time;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     error::OsError,
-    event::{Event, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    window::{CursorGrabMode, WindowBuilder},
 };
 
 macro_rules! log_on_err {
@@ -42,6 +43,7 @@ pub struct Game {
     settings: Settings,
     graphics: graphics::Context,
     world: voxel::World,
+    controller: Controller,
 }
 
 impl Game {
@@ -84,14 +86,16 @@ impl Game {
             }
         }
         world.generate_mesh();
+        let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(-30.0), Deg(0.0));
         Ok(Self {
             settings,
             graphics,
             world,
+            controller,
         })
     }
 
-    pub fn run(self) -> Result<(), Error> {
+    pub fn run(mut self) -> Result<(), Error> {
         #[inline]
         fn get_projection(size: Extent2d<u32>) -> graphics::mesh::Projection {
             let aspect = size.width as f32 / size.height as f32;
@@ -108,6 +112,8 @@ impl Game {
             builder.build(&event_loop)
         }
         .map_err(|error| Error::CreateWindowFailed(error))?;
+        window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+        window.set_cursor_visible(false);
 
         // center window to monitor if `settings.window_mode` is `Windowed`
         if let (WindowMode::Windowed(_), Some(monitor)) =
@@ -132,19 +138,44 @@ impl Game {
             render_target.target_format(),
             get_projection(window.inner_size().into()),
         );
-        let camera = Matrix4::from_translation(Vector3::new(0.0, 2.0, 3.0))
-            * Matrix4::from_angle_x(Deg(-30.0));
-        mesh_renderer.set_view(camera.inverse_transform().unwrap());
 
         // create renderables
         let material = graphics::Material {
             blend: graphics::material::BlendMode::Opaque,
         };
 
+        // used for calculating delta time
+        let mut t0 = time::Instant::now();
+        let mut delta_time = 0.0;
+
+        // used to update the controller
+        let lateral_speed = 10.0;
+        let vertical_speed = 10.0;
+        let look_speed = Vector2::new(10.0, 15.0);
+        let mut lateral_direction = Vector2::zero();
+        let mut vertical_direction = 0.0;
+
         event_loop.run(move |event, _, flow| match event {
             // main events
-            Event::NewEvents(_) => {}
+            Event::NewEvents(_) => {
+                // get delta time
+                let t1 = time::Instant::now();
+                delta_time = t1.duration_since(t0).as_secs_f32();
+                t0 = t1;
+            }
             Event::MainEventsCleared => {
+                // move controller
+                lateral_direction.normalize();
+                let lateral_translation =
+                    Vector3::new(lateral_direction.x, 0.0, lateral_direction.y)
+                        * (lateral_speed * delta_time);
+                let vertical_translation =
+                    Vector3::unit_y() * vertical_direction * vertical_speed * delta_time;
+                self.controller.translate_local(lateral_translation);
+                self.controller.translate_global(vertical_translation);
+                mesh_renderer
+                    .set_view(self.controller.get_transform().inverse_transform().unwrap());
+
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -160,6 +191,34 @@ impl Game {
                     log_on_err!(render_target.set_size(window_size));
                     mesh_renderer.set_projection(get_projection(window_size));
                 }
+                WindowEvent::KeyboardInput { input, .. } => match input.state {
+                    ElementState::Pressed => match input.virtual_keycode {
+                        // close window
+                        Some(VirtualKeyCode::Escape) => flow.set_exit(),
+
+                        // movement
+                        Some(VirtualKeyCode::A) => lateral_direction.x = -1.0,
+                        Some(VirtualKeyCode::D) => lateral_direction.x = 1.0,
+                        Some(VirtualKeyCode::S) => lateral_direction.y = 1.0,
+                        Some(VirtualKeyCode::W) => lateral_direction.y = -1.0,
+                        Some(VirtualKeyCode::Q) => vertical_direction = -1.0,
+                        Some(VirtualKeyCode::E) => vertical_direction = 1.0,
+                        _ => {}
+                    },
+                    ElementState::Released => match input.virtual_keycode {
+                        // movement
+                        Some(VirtualKeyCode::A) | Some(VirtualKeyCode::D) => {
+                            lateral_direction.x = 0.0
+                        }
+                        Some(VirtualKeyCode::S) | Some(VirtualKeyCode::W) => {
+                            lateral_direction.y = 0.0
+                        }
+                        Some(VirtualKeyCode::Q) | Some(VirtualKeyCode::E) => {
+                            vertical_direction = 0.0
+                        }
+                        _ => {}
+                    },
+                },
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
@@ -175,6 +234,18 @@ impl Game {
                     mesh_renderer.submit()
                 ));
             }
+
+            // mouse motion events
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta: (x, y) } => {
+                    let (x, y) = (x as f32, y as f32);
+                    self.controller
+                        .rotate_yaw(-Deg(x * look_speed.x * delta_time));
+                    self.controller
+                        .rotate_pitch(-Deg(y * look_speed.y * delta_time));
+                }
+                _ => {}
+            },
             _ => {}
         });
     }
