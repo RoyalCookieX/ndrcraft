@@ -42,9 +42,9 @@ impl RenderTarget {
             .get_default_config(adapter, window_size.width, window_size.height)
             .ok_or(Error::AdapterInvalid)?;
         surface_config.present_mode = if vsync {
-            wgpu::PresentMode::AutoNoVsync
-        } else {
             wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
         };
         surface.configure(&device, &surface_config);
         let depth_attachment = if depth {
