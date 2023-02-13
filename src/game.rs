@@ -47,6 +47,8 @@ pub struct Game {
 }
 
 impl Game {
+    const TITLE: &'static str = "NdrCraft";
+
     pub fn new(settings: Settings) -> Result<Self, Error> {
         let graphics = graphics::Context::new()?;
         let mut world = voxel::World::new(&graphics, settings.world_size, 3)?;
@@ -69,8 +71,12 @@ impl Game {
         let height = (world.size().height / 2) as i32;
         let depth = (world.size().depth / 2) as i32;
         for z in -width..width {
-            for y in -height..=0 {
+            for y in -height..height {
                 for x in -depth..depth {
+                    let threshold = (x as f32 * 0.12).sin() * 1.2 + (z as f32 * 0.05).cos() * 0.5;
+                    if y as f32 > threshold {
+                        continue;
+                    }
                     use std::collections::hash_map::DefaultHasher;
                     use std::hash::{Hash, Hasher};
 
@@ -105,7 +111,7 @@ impl Game {
         // create event_loop and window from settings
         let event_loop = EventLoop::new();
         let window = {
-            let mut builder = WindowBuilder::new().with_title("NdrCraft");
+            let mut builder = WindowBuilder::new().with_title(Self::TITLE);
             builder = match self.settings.window_mode {
                 WindowMode::Windowed(size) => builder.with_inner_size(PhysicalSize::from(size)),
             };
@@ -144,9 +150,12 @@ impl Game {
             blend: graphics::material::BlendMode::Opaque,
         };
 
-        // used for calculating delta time
-        let mut t0 = time::Instant::now();
+        // timekeeping data (delta time, frame count)
+        let start = time::Instant::now();
         let mut delta_time = 0.0;
+        let mut last_tick = start;
+        let mut last_second = start;
+        let mut frame_count = 0u128;
 
         // used to update the controller
         let lateral_speed = 10.0;
@@ -159,9 +168,19 @@ impl Game {
             // main events
             Event::NewEvents(_) => {
                 // get delta time
-                let t1 = time::Instant::now();
-                delta_time = t1.duration_since(t0).as_secs_f32();
-                t0 = t1;
+                delta_time = last_tick.elapsed().as_secs_f32();
+                last_tick = time::Instant::now();
+
+                // update title every second
+                if last_second.elapsed().as_secs_f32() > 1.0 {
+                    last_second = time::Instant::now();
+                    let fps = frame_count as f32 / start.elapsed().as_secs_f32();
+                    let ms = delta_time * 1000.0;
+                    let title = format!("{} [{fps:.2} fps, {ms:.2} ms]", Self::TITLE);
+                    window.set_title(&title);
+                }
+
+                frame_count += 1;
             }
             Event::MainEventsCleared => {
                 // move controller
