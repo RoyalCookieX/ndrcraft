@@ -91,9 +91,9 @@ impl Game {
                 }
             }
         }
-        world.set_voxel(Offset3d::new(-2, 5, 0), Voxel::Tile(0))?;
+        world.set_voxel(Offset3d::new(1, 4, 0), Voxel::Tile(0))?;
         world.set_voxel(Offset3d::new(0, 5, 0), Voxel::Tile(1))?;
-        world.set_voxel(Offset3d::new(2, 5, 0), Voxel::Tile(2))?;
+        world.set_voxel(Offset3d::new(0, 4, 1), Voxel::Tile(2))?;
         world.set_voxel(Offset3d::new(-2, -2, 0), Voxel::Void)?;
         world.set_voxel(Offset3d::new(0, -2, 0), Voxel::Void)?;
         world.set_voxel(Offset3d::new(2, -2, 0), Voxel::Void)?;
@@ -158,6 +158,7 @@ impl Game {
         // create renderables
         let material = graphics::Material {
             blend: graphics::material::BlendMode::Opaque,
+            cull: graphics::material::CullMode::Back,
         };
 
         // timekeeping data (delta time, frame count)

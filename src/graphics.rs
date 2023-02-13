@@ -5,8 +5,16 @@ pub mod material {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum CullMode {
+        None,
+        Front,
+        Back,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Material {
         pub blend: BlendMode,
+        pub cull: CullMode,
     }
 }
 pub mod mesh;

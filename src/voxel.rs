@@ -50,12 +50,12 @@ impl Face {
     fn get_vertex_positions(&self) -> [Vector3<f32>; 6] {
         match *self {
             Face::PosX => [
-                Vector3::new(0.5, -0.5, -0.5),
-                Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(0.5, -0.5, 0.5),
-                Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(0.5, 0.5, 0.5),
-                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, -0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(0.5, -0.5, -0.5),
             ],
             Face::NegX => [
                 Vector3::new(-0.5, -0.5, -0.5),
@@ -66,12 +66,12 @@ impl Face {
                 Vector3::new(-0.5, -0.5, 0.5),
             ],
             Face::PosY => [
-                Vector3::new(0.5, 0.5, 0.5),
-                Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(-0.5, 0.5, 0.5),
-                Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(-0.5, 0.5, -0.5),
-                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(-0.5, 0.5, -0.5),
+                Vector3::new(0.5, 0.5, -0.5),
+                Vector3::new(0.5, 0.5, 0.5),
             ],
             Face::NegY => [
                 Vector3::new(-0.5, -0.5, -0.5),
@@ -82,12 +82,12 @@ impl Face {
                 Vector3::new(0.5, -0.5, -0.5),
             ],
             Face::PosZ => [
-                Vector3::new(0.5, -0.5, 0.5),
-                Vector3::new(0.5, 0.5, 0.5),
                 Vector3::new(-0.5, -0.5, 0.5),
-                Vector3::new(0.5, 0.5, 0.5),
                 Vector3::new(-0.5, 0.5, 0.5),
-                Vector3::new(-0.5, -0.5, 0.5),
+                Vector3::new(0.5, -0.5, 0.5),
+                Vector3::new(-0.5, 0.5, 0.5),
+                Vector3::new(0.5, 0.5, 0.5),
+                Vector3::new(0.5, -0.5, 0.5),
             ],
             Face::NegZ => [
                 Vector3::new(0.5, -0.5, -0.5),
@@ -102,15 +102,7 @@ impl Face {
 
     fn get_vertex_uvs(&self) -> [Vector2<f32>; 6] {
         match self {
-            Face::PosX | Face::PosZ => [
-                Vector2::new(1.0, 0.667),
-                Vector2::new(1.0, 0.333),
-                Vector2::new(0.0, 0.667),
-                Vector2::new(1.0, 0.333),
-                Vector2::new(0.0, 0.333),
-                Vector2::new(0.0, 0.667),
-            ],
-            Face::NegX | Face::NegZ => [
+            Face::PosX | Face::NegX | Face::PosZ | Face::NegZ => [
                 Vector2::new(0.0, 0.667),
                 Vector2::new(0.0, 0.333),
                 Vector2::new(1.0, 0.667),
@@ -119,12 +111,12 @@ impl Face {
                 Vector2::new(1.0, 0.667),
             ],
             Face::PosY => [
-                Vector2::new(1.0, 0.333),
-                Vector2::new(1.0, 0.0),
                 Vector2::new(0.0, 0.333),
-                Vector2::new(1.0, 0.0),
                 Vector2::new(0.0, 0.0),
-                Vector2::new(0.0, 0.333),
+                Vector2::new(1.0, 0.333),
+                Vector2::new(0.0, 0.0),
+                Vector2::new(1.0, 0.0),
+                Vector2::new(1.0, 0.333),
             ],
             Face::NegY => [
                 Vector2::new(0.0, 1.0),

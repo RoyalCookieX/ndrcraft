@@ -357,6 +357,11 @@ impl Renderer {
             material,
             view_dimension,
         };
+        let cull_mode = match material.cull {
+            material::CullMode::None => None,
+            material::CullMode::Front => Some(wgpu::Face::Front),
+            material::CullMode::Back => Some(wgpu::Face::Back),
+        };
         let depth_stencil = self
             .target_format
             .depth_format
@@ -399,7 +404,7 @@ impl Renderer {
                                     topology: wgpu::PrimitiveTopology::TriangleList,
                                     strip_index_format: None,
                                     front_face: wgpu::FrontFace::Cw,
-                                    cull_mode: None,
+                                    cull_mode,
                                     unclipped_depth: false,
                                     polygon_mode: wgpu::PolygonMode::Fill,
                                     conservative: false,
