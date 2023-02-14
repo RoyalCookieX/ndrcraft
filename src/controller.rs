@@ -3,23 +3,27 @@ use crate::{Deg, Matrix4, Vector3, Vector4, Zero};
 #[derive(Debug)]
 pub struct Controller {
     position: Vector3<f32>,
-    yaw: Deg<f32>,
     pitch: Deg<f32>,
+    yaw: Deg<f32>,
 }
 
 impl Controller {
     const MIN_PITCH_DEG: f32 = -89.0;
     const MAX_PITCH_DEG: f32 = 89.0;
 
-    pub const fn new(position: Vector3<f32>, yaw: Deg<f32>, pitch: Deg<f32>) -> Self {
+    pub const fn new(position: Vector3<f32>, pitch: Deg<f32>, yaw: Deg<f32>) -> Self {
         Self {
             position,
-            yaw,
             pitch,
+            yaw,
         }
     }
 
-    pub fn get_transform(&self) -> Matrix4<f32> {
+    pub fn position(&self) -> Vector3<f32> {
+        self.position
+    }
+
+    pub fn get_transform_matrix(&self) -> Matrix4<f32> {
         Matrix4::from_translation(self.position) * self.get_rotation_matrix()
     }
 
@@ -37,13 +41,13 @@ impl Controller {
         self.position += translation;
     }
 
-    pub fn rotate_yaw(&mut self, yaw: Deg<f32>) {
-        self.yaw += yaw;
-    }
-
     pub fn rotate_pitch(&mut self, pitch: Deg<f32>) {
         self.pitch += pitch;
         self.pitch = Deg(self.pitch.0.clamp(Self::MIN_PITCH_DEG, Self::MAX_PITCH_DEG));
+    }
+
+    pub fn rotate_yaw(&mut self, yaw: Deg<f32>) {
+        self.yaw += yaw;
     }
 
     #[inline]

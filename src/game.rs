@@ -29,6 +29,23 @@ pub struct Settings {
     pub world_size: Extent3d<u32>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct InputAxis {
+    pub negative: bool,
+    pub positive: bool,
+}
+
+impl InputAxis {
+    fn get_value(&self) -> Option<f32> {
+        if !(self.negative ^ self.positive) {
+            return None;
+        }
+        let negative_value = if self.negative { -1.0 } else { 0.0 };
+        let positive_value = if self.positive { 1.0 } else { 0.0 };
+        Some(negative_value + positive_value)
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     CreateWindowFailed(OsError),
@@ -102,7 +119,7 @@ impl Game {
             world.set_voxel(void_pos, Voxel::Void)?;
         }
         world.generate_mesh();
-        let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(-30.0), Deg(0.0));
+        let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(0.0), Deg(-30.0));
         Ok(Self {
             settings,
             graphics,
@@ -172,8 +189,9 @@ impl Game {
         let lateral_speed = 10.0;
         let vertical_speed = 10.0;
         let look_speed = Vector2::new(0.2, 0.2);
-        let mut lateral_direction = Vector2::zero();
-        let mut vertical_direction = 0.0;
+        let mut right_axis = InputAxis::default();
+        let mut forward_axis = InputAxis::default();
+        let mut up_axis = InputAxis::default();
         let mut look_delta = Vector2::new(0.0, 0.0);
 
         event_loop.run(move |event, _, flow| match event {
@@ -199,24 +217,41 @@ impl Game {
             Event::MainEventsCleared => {
                 let delta_time = delta_time.as_secs_f32();
 
-                // move controller
-                lateral_direction.normalize();
                 look_delta.normalize();
 
-                let lateral_translation =
-                    Vector3::new(lateral_direction.x, 0.0, lateral_direction.y)
-                        * (lateral_speed * delta_time);
-                let vertical_translation =
-                    Vector3::unit_y() * vertical_direction * vertical_speed * delta_time;
+                // move controller laterally (local right & forward)
+                if let Some(input_direction) = {
+                    match (right_axis.get_value(), forward_axis.get_value()) {
+                        (None, None) => None,
+                        (right, forward) => Some(
+                            Vector2::new(right.unwrap_or_default(), forward.unwrap_or_default())
+                                .normalize(),
+                        ),
+                    }
+                } {
+                    let translation = Vector3::new(input_direction.x, 0.0, input_direction.y)
+                        * lateral_speed
+                        * delta_time;
+                    self.controller.translate_local(translation);
+                }
+
+                // move controller vertically (global up)
+                if let Some(input_direction) = up_axis.get_value() {
+                    let translation =
+                        Vector3::unit_y() * input_direction * vertical_speed * delta_time;
+                    self.controller.translate_global(translation);
+                }
+
                 let look_direction = look_delta.mul_element_wise(look_speed);
-                self.controller.translate_local(lateral_translation);
-                self.controller.translate_global(vertical_translation);
                 self.controller.rotate_yaw(-Deg(look_direction.x));
                 self.controller.rotate_pitch(-Deg(look_direction.y));
 
-                mesh_renderer
-                    .set_view(self.controller.get_transform().inverse_transform().unwrap());
-
+                mesh_renderer.set_view(
+                    self.controller
+                        .get_transform_matrix()
+                        .inverse_transform()
+                        .unwrap(),
+                );
                 window.request_redraw();
             }
             Event::LoopDestroyed => {}
@@ -232,34 +267,33 @@ impl Game {
                     log_on_err!(render_target.set_size(window_size));
                     mesh_renderer.set_projection(get_projection(window_size));
                 }
-                WindowEvent::KeyboardInput { input, .. } => match input.state {
-                    ElementState::Pressed => match input.virtual_keycode {
-                        // close window
-                        Some(VirtualKeyCode::Escape) => flow.set_exit(),
+                WindowEvent::KeyboardInput { input, .. } => {
+                    match input.state {
+                        ElementState::Pressed => match input.virtual_keycode {
+                            // close window
+                            Some(VirtualKeyCode::Escape) => flow.set_exit(),
 
-                        // movement
-                        Some(VirtualKeyCode::A) => lateral_direction.x = -1.0,
-                        Some(VirtualKeyCode::D) => lateral_direction.x = 1.0,
-                        Some(VirtualKeyCode::S) => lateral_direction.y = 1.0,
-                        Some(VirtualKeyCode::W) => lateral_direction.y = -1.0,
-                        Some(VirtualKeyCode::Q) => vertical_direction = -1.0,
-                        Some(VirtualKeyCode::E) => vertical_direction = 1.0,
-                        _ => {}
-                    },
-                    ElementState::Released => match input.virtual_keycode {
-                        // movement
-                        Some(VirtualKeyCode::A) | Some(VirtualKeyCode::D) => {
-                            lateral_direction.x = 0.0
-                        }
-                        Some(VirtualKeyCode::S) | Some(VirtualKeyCode::W) => {
-                            lateral_direction.y = 0.0
-                        }
-                        Some(VirtualKeyCode::Q) | Some(VirtualKeyCode::E) => {
-                            vertical_direction = 0.0
-                        }
-                        _ => {}
-                    },
-                },
+                            // movement
+                            Some(VirtualKeyCode::A) => right_axis.negative = true,
+                            Some(VirtualKeyCode::D) => right_axis.positive = true,
+                            Some(VirtualKeyCode::W) => forward_axis.negative = true,
+                            Some(VirtualKeyCode::S) => forward_axis.positive = true,
+                            Some(VirtualKeyCode::Q) => up_axis.negative = true,
+                            Some(VirtualKeyCode::E) => up_axis.positive = true,
+                            _ => {}
+                        },
+                        ElementState::Released => match input.virtual_keycode {
+                            // movement
+                            Some(VirtualKeyCode::A) => right_axis.negative = false,
+                            Some(VirtualKeyCode::D) => right_axis.positive = false,
+                            Some(VirtualKeyCode::W) => forward_axis.negative = false,
+                            Some(VirtualKeyCode::S) => forward_axis.positive = false,
+                            Some(VirtualKeyCode::Q) => up_axis.negative = false,
+                            Some(VirtualKeyCode::E) => up_axis.positive = false,
+                            _ => {}
+                        },
+                    }
+                }
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
