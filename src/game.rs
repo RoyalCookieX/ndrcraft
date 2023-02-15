@@ -217,46 +217,6 @@ impl Game {
             cull: graphics::material::CullMode::Back,
         };
 
-        let vertices = [
-            graphics::mesh::Vertex::new(
-                Vector3::new(-0.5, -0.5, 0.0),
-                Color::red(),
-                Vector2::new(0.0, 0.0),
-            ),
-            graphics::mesh::Vertex::new(
-                Vector3::new(-0.5, 0.5, 0.0),
-                Color::green(),
-                Vector2::new(0.0, 0.0),
-            ),
-            graphics::mesh::Vertex::new(
-                Vector3::new(0.5, -0.5, 0.0),
-                Color::blue(),
-                Vector2::new(0.0, 0.0),
-            ),
-            graphics::mesh::Vertex::new(
-                Vector3::new(0.5, 0.5, 0.0),
-                Color::white(),
-                Vector2::new(0.0, 0.0),
-            ),
-            graphics::mesh::Vertex::new(
-                Vector3::new(-0.5, 1.5, 0.0),
-                Color::new(1.0, 0.0, 1.0, 1.0),
-                Vector2::new(0.0, 0.0),
-            ),
-            graphics::mesh::Vertex::new(
-                Vector3::new(0.5, 1.5, 0.0),
-                Color::new(0.0, 1.0, 1.0, 1.0),
-                Vector2::new(0.0, 0.0),
-            ),
-        ];
-        let submesh_0 = [0u32, 1, 2, 1, 3, 2];
-        let submesh_1 = [1, 4, 3, 4, 5, 3];
-        let mut quad = self.graphics.create_mesh(&vertices, &[]);
-        quad.submeshes
-            .push(graphics::mesh::Submesh::new(&submesh_0));
-        quad.submeshes
-            .push(graphics::mesh::Submesh::new(&submesh_1));
-
         // timekeeping data (delta time, frame count)
         let mut frame_count = 0u64;
         let start = time::Instant::now();
@@ -383,27 +343,6 @@ impl Game {
                         material,
                         texture: Some(self.world.texture()),
                     }],
-                ));
-                log_on_err!(mesh_renderer.draw_mesh(
-                    Matrix4::from_translation(Vector3::new(-3.5, 2.1, -1.0))
-                        * Matrix4::from_scale(1.2),
-                    &quad,
-                    &[
-                        graphics::mesh::MaterialTexture {
-                            material: graphics::Material {
-                                blend: graphics::material::BlendMode::Opaque,
-                                cull: graphics::material::CullMode::None,
-                            },
-                            texture: None,
-                        },
-                        graphics::mesh::MaterialTexture {
-                            material: graphics::Material {
-                                blend: graphics::material::BlendMode::Opaque,
-                                cull: graphics::material::CullMode::Front,
-                            },
-                            texture: None,
-                        }
-                    ],
                 ));
                 log_on_err!(render_target.draw_pass(
                     Some(Color::black()),

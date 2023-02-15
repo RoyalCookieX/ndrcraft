@@ -34,7 +34,13 @@ impl Face {
 }
 
 impl Face {
-    const MAX_COUNT: u8 = 6;
+    const VERTEX_COUNT: usize = 4;
+    const INDEX_COUNT: usize = 6;
+    const CUBE_FACE_COUNT: u8 = 6;
+
+    fn get_indices() -> [u32; Self::INDEX_COUNT] {
+        [0, 1, 2, 1, 3, 2]
+    }
 
     fn opposite(&self) -> Self {
         match self {
@@ -47,89 +53,71 @@ impl Face {
         }
     }
 
-    fn get_vertex_positions(&self) -> [Vector3<f32>; 6] {
+    fn get_vertex_positions(&self) -> [Vector3<f32>; Self::VERTEX_COUNT] {
         match *self {
             Face::PosX => [
                 Vector3::new(0.5, -0.5, 0.5),
                 Vector3::new(0.5, 0.5, 0.5),
                 Vector3::new(0.5, -0.5, -0.5),
-                Vector3::new(0.5, 0.5, 0.5),
                 Vector3::new(0.5, 0.5, -0.5),
-                Vector3::new(0.5, -0.5, -0.5),
             ],
             Face::NegX => [
                 Vector3::new(-0.5, -0.5, -0.5),
                 Vector3::new(-0.5, 0.5, -0.5),
                 Vector3::new(-0.5, -0.5, 0.5),
-                Vector3::new(-0.5, 0.5, -0.5),
                 Vector3::new(-0.5, 0.5, 0.5),
-                Vector3::new(-0.5, -0.5, 0.5),
             ],
             Face::PosY => [
                 Vector3::new(-0.5, 0.5, 0.5),
                 Vector3::new(-0.5, 0.5, -0.5),
                 Vector3::new(0.5, 0.5, 0.5),
-                Vector3::new(-0.5, 0.5, -0.5),
                 Vector3::new(0.5, 0.5, -0.5),
-                Vector3::new(0.5, 0.5, 0.5),
             ],
             Face::NegY => [
                 Vector3::new(-0.5, -0.5, -0.5),
                 Vector3::new(-0.5, -0.5, 0.5),
                 Vector3::new(0.5, -0.5, -0.5),
-                Vector3::new(-0.5, -0.5, 0.5),
                 Vector3::new(0.5, -0.5, 0.5),
-                Vector3::new(0.5, -0.5, -0.5),
             ],
             Face::PosZ => [
                 Vector3::new(-0.5, -0.5, 0.5),
                 Vector3::new(-0.5, 0.5, 0.5),
                 Vector3::new(0.5, -0.5, 0.5),
-                Vector3::new(-0.5, 0.5, 0.5),
                 Vector3::new(0.5, 0.5, 0.5),
-                Vector3::new(0.5, -0.5, 0.5),
             ],
             Face::NegZ => [
                 Vector3::new(0.5, -0.5, -0.5),
                 Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(-0.5, -0.5, -0.5),
-                Vector3::new(0.5, 0.5, -0.5),
                 Vector3::new(-0.5, 0.5, -0.5),
-                Vector3::new(-0.5, -0.5, -0.5),
             ],
         }
     }
 
-    fn get_vertex_uvs(&self) -> [Vector2<f32>; 6] {
+    fn get_vertex_uvs(&self) -> [Vector2<f32>; Self::VERTEX_COUNT] {
         match self {
             Face::PosX | Face::NegX | Face::PosZ | Face::NegZ => [
                 Vector2::new(0.0, 0.667),
                 Vector2::new(0.0, 0.333),
                 Vector2::new(1.0, 0.667),
-                Vector2::new(0.0, 0.333),
                 Vector2::new(1.0, 0.333),
-                Vector2::new(1.0, 0.667),
             ],
             Face::PosY => [
                 Vector2::new(0.0, 0.333),
                 Vector2::new(0.0, 0.0),
                 Vector2::new(1.0, 0.333),
-                Vector2::new(0.0, 0.0),
                 Vector2::new(1.0, 0.0),
-                Vector2::new(1.0, 0.333),
             ],
             Face::NegY => [
                 Vector2::new(0.0, 1.0),
                 Vector2::new(0.0, 0.667),
                 Vector2::new(1.0, 1.0),
-                Vector2::new(0.0, 0.667),
                 Vector2::new(1.0, 0.667),
-                Vector2::new(1.0, 1.0),
             ],
         }
     }
 
-    fn get_adjacent_voxel_position(&self) -> Offset3d<i32> {
+    fn get_voxel_normal(&self) -> Offset3d<i32> {
         match *self {
             Face::PosX => Offset3d::new(1, 0, 0),
             Face::NegX => Offset3d::new(-1, 0, 0),
@@ -289,12 +277,12 @@ impl World {
 
         // set faces
         // iterate all target faces
-        for face_index in 0..Face::MAX_COUNT {
+        for face_index in 0..Face::CUBE_FACE_COUNT {
             let face = Face::from_index(face_index);
 
             // get voxel adjacent to face
             let other_position = {
-                let adjacent = face.get_adjacent_voxel_position();
+                let adjacent = face.get_voxel_normal();
                 Offset3d::new(
                     position.x + adjacent.x,
                     position.y + adjacent.y,
@@ -356,7 +344,9 @@ impl World {
 
     pub fn generate_mesh(&mut self) {
         self.mesh.vertices.clear();
-        let mut staging = Vec::new();
+        self.mesh.submeshes.clear();
+        let mut vertices = Vec::new();
+        let mut submesh = graphics::mesh::Submesh::new(&[]);
         for (voxel_position, voxel_data) in self.iter() {
             match voxel_data.voxel {
                 Voxel::Void => continue,
@@ -366,29 +356,37 @@ impl World {
                         voxel_position.y as f32,
                         voxel_position.z as f32,
                     );
-                    for face_index in 0..Face::MAX_COUNT {
+                    let face_indices = Face::get_indices();
+                    for face_index in 0..Face::CUBE_FACE_COUNT {
                         let face = Face::from_index(face_index);
                         if !voxel_data.faces.contains(Faces::from(face)) {
                             continue;
                         }
-                        let vertex_positions = face.get_vertex_positions();
-                        let vertex_uvs = face.get_vertex_uvs();
-                        staging.extend(vertex_positions.iter().zip(vertex_uvs.iter()).map(
-                            |(position, uv)| {
-                                let position = *position + world_position;
-                                let color = Color::white();
-                                let uv = Vector2::new(
-                                    (tile_index as f32 + uv.x) / self.max_tiles as f32,
-                                    uv.y,
-                                );
-                                graphics::mesh::Vertex::new(position, color, uv)
-                            },
-                        ));
+                        let vertex_count = vertices.len() as u32;
+                        let indices = face_indices.map(|index| vertex_count + index);
+                        let face_vertex_positions = face.get_vertex_positions();
+                        let face_vertex_uvs = face.get_vertex_uvs();
+                        vertices.extend(
+                            face_vertex_positions
+                                .iter()
+                                .zip(face_vertex_uvs.iter())
+                                .map(|(position, uv)| {
+                                    let position = *position + world_position;
+                                    let color = Color::white();
+                                    let uv = Vector2::new(
+                                        (tile_index as f32 + uv.x) / self.max_tiles as f32,
+                                        uv.y,
+                                    );
+                                    graphics::mesh::Vertex::new(position, color, uv)
+                                }),
+                        );
+                        submesh.indices.extend(indices.iter());
                     }
                 }
             }
         }
-        self.mesh.vertices.extend_from_slice(&staging);
+        self.mesh.vertices.extend_from_slice(&vertices);
+        self.mesh.submeshes.extend(Some(submesh));
     }
 
     #[inline]
