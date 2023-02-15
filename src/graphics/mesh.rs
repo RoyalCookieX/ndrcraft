@@ -35,22 +35,42 @@ impl Default for Vertex {
 unsafe impl Bytes for Vertex {}
 
 #[derive(Debug)]
+pub struct Submesh {
+    pub indices: Vec<u32>,
+}
+
+impl Submesh {
+    pub fn new(indices: &[u32]) -> Self {
+        let indices = indices.to_owned();
+        Self { indices }
+    }
+}
+
+#[derive(Debug)]
 struct BufferInfo {
-    vertices_offset: u64,
-    vertices_size: u64,
-    aligned_size: u64,
+    pub vertices_offset_size: (u64, u64),
+    pub indices_offset_sizes: Vec<(u64, u64)>,
+    pub aligned_size: u64,
 }
 
 impl BufferInfo {
     const ALIGNMENT: u64 = 256;
 
-    fn new(vertices: &[Vertex]) -> Self {
+    fn new(vertices: &[Vertex], submeshes: &[Submesh]) -> Self {
         let vertices_offset = 0;
         let vertices_size = vertices.as_bytes().len() as u64;
-        let aligned_size = Self::get_aligned_size(vertices_size);
+        let mut aligned_size = Self::get_aligned_size(vertices_size);
+        let mut indices_offset_sizes = Vec::with_capacity(submeshes.len());
+        for submesh in submeshes {
+            let indices_offset = aligned_size;
+            let indices_size = submesh.indices.as_slice().as_bytes().len() as u64;
+            indices_offset_sizes.push((indices_offset, indices_size));
+            aligned_size += Self::get_aligned_size(indices_size);
+        }
+        let vertices_offset_size = (vertices_offset, vertices_size);
         Self {
-            vertices_offset,
-            vertices_size,
+            vertices_offset_size,
+            indices_offset_sizes,
             aligned_size,
         }
     }
@@ -65,6 +85,7 @@ impl BufferInfo {
 #[derive(Debug)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
+    pub submeshes: Vec<Submesh>,
     device: Rc<wgpu::Device>,
     queue: Rc<wgpu::Queue>,
     buffer_info: RefCell<BufferInfo>,
@@ -72,16 +93,26 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    fn new(device: Rc<wgpu::Device>, queue: Rc<wgpu::Queue>, vertices: &[Vertex]) -> Self {
+    fn new(
+        device: Rc<wgpu::Device>,
+        queue: Rc<wgpu::Queue>,
+        vertices: &[Vertex],
+        indices: &[&[u32]],
+    ) -> Self {
         let vertices = vertices.to_owned();
-        let buffer_info = BufferInfo::new(&vertices);
+        let submeshes: Vec<_> = indices
+            .into_iter()
+            .map(|indices| Submesh::new(indices))
+            .collect();
+        let buffer_info = BufferInfo::new(&vertices, &submeshes);
         let buffer_size = buffer_info.aligned_size;
         let buffer = Self::create_buffer(&device, buffer_size);
-        Self::flush_buffer(&queue, &buffer_info, &buffer, &vertices);
+        Self::flush_buffer(&queue, &buffer_info, &buffer, &vertices, &submeshes);
         let buffer_info = RefCell::new(buffer_info);
         let buffer = RefCell::new(buffer);
         Self {
             vertices,
+            submeshes,
             device,
             queue,
             buffer_info,
@@ -90,7 +121,7 @@ impl Mesh {
     }
 
     pub(crate) fn flush(&self) {
-        let buffer_info = BufferInfo::new(&self.vertices);
+        let buffer_info = BufferInfo::new(&self.vertices, &self.submeshes);
         let buffer_size = self.buffer_info.borrow().aligned_size;
         if buffer_info.aligned_size > buffer_size {
             self.buffer
@@ -102,6 +133,7 @@ impl Mesh {
             &self.buffer_info.borrow(),
             &self.buffer.borrow(),
             &self.vertices,
+            &self.submeshes,
         );
     }
 
@@ -110,7 +142,9 @@ impl Mesh {
         Rc::new(device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::INDEX,
             mapped_at_creation: false,
         }))
     }
@@ -121,8 +155,20 @@ impl Mesh {
         buffer_info: &BufferInfo,
         buffer: &wgpu::Buffer,
         vertices: &[Vertex],
+        submeshes: &[Submesh],
     ) {
-        queue.write_buffer(buffer, buffer_info.vertices_offset, vertices.as_bytes());
+        queue.write_buffer(
+            buffer,
+            buffer_info.vertices_offset_size.0,
+            vertices.as_bytes(),
+        );
+        for ((offset, _), submesh) in buffer_info
+            .indices_offset_sizes
+            .iter()
+            .zip(submeshes.iter())
+        {
+            queue.write_buffer(buffer, *offset, submesh.indices.as_slice().as_bytes())
+        }
     }
 }
 
@@ -161,6 +207,12 @@ impl From<Projection> for Matrix4<f32> {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct MaterialTexture<'a> {
+    pub material: Material,
+    pub texture: Option<&'a Texture>,
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct Global {
     view: Matrix4<f32>,
@@ -182,16 +234,27 @@ struct PipelineIndex {
     view_dimension: wgpu::TextureViewDimension,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct DrawBufferState {
+    range: (u64, u64),
+    element_count: u32,
+}
+
 #[derive(Debug)]
 struct DrawMeshState {
     material: Material,
     view_dimension: wgpu::TextureViewDimension,
-    mesh_buffer: Rc<wgpu::Buffer>,
-    mesh_buffer_range: (u64, u64),
-    mesh_vertex_count: u32,
+    buffer: Rc<wgpu::Buffer>,
+    vertex_buffer: DrawBufferState,
+    index_buffer: Option<DrawBufferState>,
     texture: Rc<wgpu::Texture>,
     sampler: Rc<wgpu::Sampler>,
     push_data: Push,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum RendererError {
+    MaterialTexturesInvalid,
 }
 
 #[derive(Debug)]
@@ -292,87 +355,112 @@ impl Renderer {
         &mut self,
         transform: Matrix4<f32>,
         mesh: &Mesh,
-        material: Material,
-        texture: Option<&Texture>,
-    ) {
+        material_textures: &[MaterialTexture<'_>],
+    ) -> Result<(), RendererError> {
+        if material_textures.len() == 0 || material_textures.len() < mesh.submeshes.len() {
+            return Err(RendererError::MaterialTexturesInvalid);
+        }
+
         mesh.flush();
+        let is_indexed = !mesh.submeshes.is_empty();
 
-        // register texture sampler
-        let sampler = texture.map_or(Self::DEFAULT_SAMPLER, |texture| {
-            texture.sampler().unwrap_or(Self::DEFAULT_SAMPLER)
-        });
-        let sampler = self
-            .samplers
-            .entry(sampler)
-            .or_insert_with(|| {
-                Rc::new(self.device.create_sampler(&wgpu::SamplerDescriptor {
-                    label: None,
-                    address_mode_u: sampler.address.into(),
-                    address_mode_v: sampler.address.into(),
-                    address_mode_w: sampler.address.into(),
-                    mag_filter: sampler.filter.into(),
-                    min_filter: sampler.filter.into(),
-                    ..Default::default()
-                }))
-            })
-            .clone();
+        // common draw state
+        let buffer = mesh.buffer.borrow();
+        let buffer_info = mesh.buffer_info.borrow();
+        let vertex_buffer_range = {
+            let start = buffer_info.vertices_offset_size.0;
+            let size = buffer_info.vertices_offset_size.1;
+            (start, start + size)
+        };
+        let vertex_count = mesh.vertices.len() as u32;
+        let vertex_buffer = DrawBufferState {
+            range: vertex_buffer_range,
+            element_count: vertex_count,
+        };
+        let push_data = Push { model: transform };
 
-        let view_dimension = texture.map_or(self.default_texture.view_dimension(), |texture| {
-            texture.view_dimension()
-        });
+        // record draw state per material-texture
+        for (i, MaterialTexture { material, texture }) in material_textures.iter().enumerate() {
+            let material = *material;
 
-        // register texture bind group layout
-        let texture_bind_group_layout = self
-            .texture_bind_group_layouts
-            .entry(view_dimension)
-            .or_insert_with(|| {
-                self.device
-                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            // register texture sampler
+            let sampler = texture.map_or(Self::DEFAULT_SAMPLER, |texture| {
+                texture.sampler().unwrap_or(Self::DEFAULT_SAMPLER)
+            });
+            let sampler = self
+                .samplers
+                .entry(sampler)
+                .or_insert_with(|| {
+                    Rc::new(self.device.create_sampler(&wgpu::SamplerDescriptor {
                         label: None,
-                        entries: &[
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: view_dimension,
-                                    multisampled: false,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 1,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
-                            },
-                        ],
-                    })
+                        address_mode_u: sampler.address.into(),
+                        address_mode_v: sampler.address.into(),
+                        address_mode_w: sampler.address.into(),
+                        mag_filter: sampler.filter.into(),
+                        min_filter: sampler.filter.into(),
+                        ..Default::default()
+                    }))
+                })
+                .clone();
+
+            let view_dimension = texture.map_or(self.default_texture.view_dimension(), |texture| {
+                texture.view_dimension()
             });
 
-        // register pipeline
-        let pipeline_index = PipelineIndex {
-            material,
-            view_dimension,
-        };
-        let cull_mode = match material.cull {
-            material::CullMode::None => None,
-            material::CullMode::Front => Some(wgpu::Face::Front),
-            material::CullMode::Back => Some(wgpu::Face::Back),
-        };
-        let depth_stencil = self
-            .target_format
-            .depth_format
-            .map(|format| wgpu::DepthStencilState {
-                format,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            });
-        self.pipelines.entry(pipeline_index).or_insert_with(|| {
+            // register texture bind group layout
+            let texture_bind_group_layout = self
+                .texture_bind_group_layouts
+                .entry(view_dimension)
+                .or_insert_with(|| {
+                    self.device
+                        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                            label: None,
+                            entries: &[
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: view_dimension,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 1,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Sampler(
+                                        wgpu::SamplerBindingType::Filtering,
+                                    ),
+                                    count: None,
+                                },
+                            ],
+                        })
+                });
+
+            // register pipeline
+            let pipeline_index = PipelineIndex {
+                material,
+                view_dimension,
+            };
+            let cull_mode = match material.cull {
+                material::CullMode::None => None,
+                material::CullMode::Front => Some(wgpu::Face::Front),
+                material::CullMode::Back => Some(wgpu::Face::Back),
+            };
+            let depth_stencil =
+                self.target_format
+                    .depth_format
+                    .map(|format| wgpu::DepthStencilState {
+                        format,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    });
+            self.pipelines.entry(pipeline_index).or_insert_with(|| {
                     let blend = match material.blend {
                         material::BlendMode::Opaque => wgpu::BlendState::REPLACE,
                     };
@@ -429,30 +517,39 @@ impl Renderer {
                     )
                 });
 
-        // record mesh
-        let mesh_buffer = mesh.buffer.borrow().clone();
-        let mesh_buffer_range = {
-            let buffer_info = mesh.buffer_info.borrow();
-            let start = buffer_info.vertices_offset;
-            let size = buffer_info.vertices_size;
-            (start, start + size)
-        };
-        let mesh_vertex_count = mesh.vertices.len() as u32;
-        let texture = texture.map_or(self.default_texture.handle().clone(), |texture| {
-            texture.handle().clone()
-        });
-        let push_data = Push { model: transform };
-        let draw_state = DrawMeshState {
-            mesh_buffer,
-            mesh_buffer_range,
-            mesh_vertex_count,
-            material,
-            texture,
-            view_dimension,
-            sampler,
-            push_data,
-        };
-        self.draw_states.push(draw_state);
+            let index_buffer = if is_indexed {
+                let index_buffer_range = {
+                    let start = buffer_info.indices_offset_sizes[i].0;
+                    let size = buffer_info.indices_offset_sizes[i].1;
+                    (start, start + size)
+                };
+                let index_count = mesh.submeshes[i].indices.len() as u32;
+                Some(DrawBufferState {
+                    range: index_buffer_range,
+                    element_count: index_count,
+                })
+            } else {
+                None
+            };
+
+            let texture = texture.map_or_else(
+                || self.default_texture.handle().clone(),
+                |texture| texture.handle().clone(),
+            );
+
+            let draw_state = DrawMeshState {
+                buffer: buffer.clone(),
+                vertex_buffer,
+                index_buffer,
+                material,
+                texture,
+                view_dimension,
+                sampler,
+                push_data,
+            };
+            self.draw_states.push(draw_state);
+        }
+        Ok(())
     }
 
     pub(crate) fn submit(&mut self) -> DrawCommandList<{ Self::PUSH_SIZE }> {
@@ -487,9 +584,9 @@ impl Renderer {
                     ],
                 }));
             let push_data = draw_state.push_data.as_byte_array().clone();
-            let buffer = draw_state.mesh_buffer.clone();
-            let buffer_range = draw_state.mesh_buffer_range;
-            let vertex_count = draw_state.mesh_vertex_count;
+            let buffer = draw_state.buffer.clone();
+            let vertex_buffer_range = draw_state.vertex_buffer.range;
+            let vertex_count = draw_state.vertex_buffer.element_count;
             draw_commands.push(DrawCommand::SetPipeline(pipeline));
             draw_commands.push(DrawCommand::SetBindGroup {
                 index: 0,
@@ -505,14 +602,28 @@ impl Renderer {
                 data: push_data,
             });
             draw_commands.push(DrawCommand::SetVertexBuffer {
-                buffer,
-                start: buffer_range.0,
-                end: buffer_range.1,
+                buffer: buffer.clone(),
+                start: vertex_buffer_range.0,
+                end: vertex_buffer_range.1,
             });
-            draw_commands.push(DrawCommand::Draw {
-                start: 0,
-                end: vertex_count,
-            });
+            if let Some(index_buffer) = draw_state.index_buffer {
+                let index_range = index_buffer.range;
+                let index_count = index_buffer.element_count;
+                draw_commands.push(DrawCommand::SetIndexBuffer {
+                    buffer,
+                    start: index_range.0,
+                    end: index_range.1,
+                });
+                draw_commands.push(DrawCommand::DrawIndexed {
+                    start: 0,
+                    end: index_count,
+                })
+            } else {
+                draw_commands.push(DrawCommand::Draw {
+                    start: 0,
+                    end: vertex_count,
+                });
+            }
         }
         DrawCommandList {
             target_format: self.target_format,
@@ -522,8 +633,8 @@ impl Renderer {
 }
 
 impl Context {
-    pub fn create_mesh(&self, vertices: &[Vertex]) -> Mesh {
-        Mesh::new(self.device.clone(), self.queue.clone(), vertices)
+    pub fn create_mesh(&self, vertices: &[Vertex], indices: &[&[u32]]) -> Mesh {
+        Mesh::new(self.device.clone(), self.queue.clone(), vertices, indices)
     }
 
     pub(crate) fn create_mesh_renderer(

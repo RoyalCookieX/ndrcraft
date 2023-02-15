@@ -228,7 +228,7 @@ impl World {
         );
         let voxel_data =
             vec![VoxelData::default(); (size.width * size.height * size.depth) as usize];
-        let mesh = graphics.create_mesh(&[]);
+        let mesh = graphics.create_mesh(&[], &[]);
         let texture_size = graphics::texture::Size::D2(Extent2d::new(
             Self::TEXTURE_SIZE.width * max_tiles,
             Self::TEXTURE_SIZE.height,

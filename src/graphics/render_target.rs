@@ -140,7 +140,12 @@ impl RenderTarget {
                     DrawCommand::SetVertexBuffer { buffer, start, end } => {
                         render_pass.set_vertex_buffer(0, buffer.slice(*start..*end))
                     }
+                    DrawCommand::SetIndexBuffer { buffer, start, end } => render_pass
+                        .set_index_buffer(buffer.slice(*start..*end), wgpu::IndexFormat::Uint32),
                     DrawCommand::Draw { start, end } => render_pass.draw(*start..*end, 0..1),
+                    DrawCommand::DrawIndexed { start, end } => {
+                        render_pass.draw_indexed(*start..*end, 0, 0..1)
+                    }
                 }
             }
         }

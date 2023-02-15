@@ -102,23 +102,21 @@ impl Game {
         let graphics = graphics::Context::new()?;
         let mut world = voxel::World::new(&graphics, settings.world_size, 3)?;
 
-        timer!("Initalizing assets" => {
-            let voxel_0 = image::io::Reader::open("assets/textures/voxel_0.png")
-                .unwrap()
-                .decode()
-                .unwrap();
-            let voxel_1 = image::io::Reader::open("assets/textures/voxel_1.png")
-                .unwrap()
-                .decode()
-                .unwrap();
-            let voxel_2 = image::io::Reader::open("assets/textures/voxel_2.png")
-                .unwrap()
-                .decode()
-                .unwrap();
-            world.set_voxel_texture(0, voxel::TextureLayout::Single, voxel_0.as_bytes())?;
-            world.set_voxel_texture(1, voxel::TextureLayout::Single, voxel_1.as_bytes())?;
-            world.set_voxel_texture(2, voxel::TextureLayout::Single, voxel_2.as_bytes())?;
-        });
+        let voxel_0 = image::io::Reader::open("assets/textures/voxel_0.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        let voxel_1 = image::io::Reader::open("assets/textures/voxel_1.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        let voxel_2 = image::io::Reader::open("assets/textures/voxel_2.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        world.set_voxel_texture(0, voxel::TextureLayout::Single, voxel_0.as_bytes())?;
+        world.set_voxel_texture(1, voxel::TextureLayout::Single, voxel_1.as_bytes())?;
+        world.set_voxel_texture(2, voxel::TextureLayout::Single, voxel_2.as_bytes())?;
 
         timer!("Generating world" => {
             let width = (world.size().width / 2) as i32;
@@ -218,6 +216,46 @@ impl Game {
             blend: graphics::material::BlendMode::Opaque,
             cull: graphics::material::CullMode::Back,
         };
+
+        let vertices = [
+            graphics::mesh::Vertex::new(
+                Vector3::new(-0.5, -0.5, 0.0),
+                Color::red(),
+                Vector2::new(0.0, 0.0),
+            ),
+            graphics::mesh::Vertex::new(
+                Vector3::new(-0.5, 0.5, 0.0),
+                Color::green(),
+                Vector2::new(0.0, 0.0),
+            ),
+            graphics::mesh::Vertex::new(
+                Vector3::new(0.5, -0.5, 0.0),
+                Color::blue(),
+                Vector2::new(0.0, 0.0),
+            ),
+            graphics::mesh::Vertex::new(
+                Vector3::new(0.5, 0.5, 0.0),
+                Color::white(),
+                Vector2::new(0.0, 0.0),
+            ),
+            graphics::mesh::Vertex::new(
+                Vector3::new(-0.5, 1.5, 0.0),
+                Color::new(1.0, 0.0, 1.0, 1.0),
+                Vector2::new(0.0, 0.0),
+            ),
+            graphics::mesh::Vertex::new(
+                Vector3::new(0.5, 1.5, 0.0),
+                Color::new(0.0, 1.0, 1.0, 1.0),
+                Vector2::new(0.0, 0.0),
+            ),
+        ];
+        let submesh_0 = [0u32, 1, 2, 1, 3, 2];
+        let submesh_1 = [1, 4, 3, 4, 5, 3];
+        let mut quad = self.graphics.create_mesh(&vertices, &[]);
+        quad.submeshes
+            .push(graphics::mesh::Submesh::new(&submesh_0));
+        quad.submeshes
+            .push(graphics::mesh::Submesh::new(&submesh_1));
 
         // timekeeping data (delta time, frame count)
         let mut frame_count = 0u64;
@@ -338,12 +376,35 @@ impl Game {
                 _ => {}
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                mesh_renderer.draw_mesh(
+                log_on_err!(mesh_renderer.draw_mesh(
                     Matrix4::identity(),
                     self.world.mesh(),
-                    material,
-                    Some(self.world.texture()),
-                );
+                    &[graphics::mesh::MaterialTexture {
+                        material,
+                        texture: Some(self.world.texture()),
+                    }],
+                ));
+                log_on_err!(mesh_renderer.draw_mesh(
+                    Matrix4::from_translation(Vector3::new(-3.5, 2.1, -1.0))
+                        * Matrix4::from_scale(1.2),
+                    &quad,
+                    &[
+                        graphics::mesh::MaterialTexture {
+                            material: graphics::Material {
+                                blend: graphics::material::BlendMode::Opaque,
+                                cull: graphics::material::CullMode::None,
+                            },
+                            texture: None,
+                        },
+                        graphics::mesh::MaterialTexture {
+                            material: graphics::Material {
+                                blend: graphics::material::BlendMode::Opaque,
+                                cull: graphics::material::CullMode::Front,
+                            },
+                            texture: None,
+                        }
+                    ],
+                ));
                 log_on_err!(render_target.draw_pass(
                     Some(Color::black()),
                     Some(1.0),

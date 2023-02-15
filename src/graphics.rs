@@ -54,7 +54,16 @@ pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 128> {
         start: u64,
         end: u64,
     },
+    SetIndexBuffer {
+        buffer: Rc<wgpu::Buffer>,
+        start: u64,
+        end: u64,
+    },
     Draw {
+        start: u32,
+        end: u32,
+    },
+    DrawIndexed {
         start: u32,
         end: u32,
     },
