@@ -38,7 +38,7 @@ pub(crate) struct TargetFormat {
 }
 
 #[derive(Debug)]
-pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 256> {
+pub(crate) enum DrawCommand<const PUSH_SIZE: usize = 128> {
     SetPipeline(Rc<wgpu::RenderPipeline>),
     SetBindGroup {
         index: u32,
@@ -98,11 +98,16 @@ impl Context {
             compatible_surface: None,
         }))
         .ok_or(Error::RequestAdapterFailed)?;
+        let features = wgpu::Features::PUSH_CONSTANTS;
+        let limits = wgpu::Limits {
+            max_push_constant_size: adapter.limits().max_push_constant_size,
+            ..Default::default()
+        };
         let (device, queue) = block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: adapter.features(),
-                limits: adapter.limits(),
+                features,
+                limits,
             },
             None,
         ))
