@@ -10,7 +10,11 @@ pub use types::*;
 pub use voxel::Voxel;
 
 fn main() {
-    env_logger::init();
+    env_logger::builder()
+        .filter(None, log::LevelFilter::Info)
+        .filter(Some("wgpu_hal"), log::LevelFilter::Warn)
+        .filter(Some("wgpu_core"), log::LevelFilter::Warn)
+        .init();
 
     let game = Game::new(game::Settings {
         window_mode: game::WindowMode::Windowed(Extent2d::new(1424, 720)),
