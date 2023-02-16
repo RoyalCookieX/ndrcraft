@@ -1,6 +1,6 @@
 pub use cgmath::*;
 
-use std::{mem, slice};
+use std::{mem, ops, slice};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
 #[macro_export(local_inner_macros)]
@@ -24,65 +24,104 @@ macro_rules! impl_unit {
     };
 }
 
-macro_rules! impl_partial_eq_vector {
-    ($t:ident{$($m:ident),*}) => {
-        impl<T: PartialEq + Unit> PartialEq for $t<T> {
-            fn eq(&self, other: &Self) -> bool {
-                $(self.$m == other.$m)&&*
+macro_rules! impl_ops_element {
+    ($op_ty:ident, $op_func:ident, $op:tt, $t:ident{$($t_m:ident),*}, $rhs:ident<$($rhs_generics:ident),*>{$($rhs_m:ident),*}) => {
+        impl<T: Unit> ops::$op_ty<$rhs<$($rhs_generics,)*>> for $t<T> {
+            type Output = Self;
+
+            fn $op_func(self, rhs: $rhs<$($rhs_generics,)*>) -> Self::Output {
+                Self {
+                    $($t_m: self.$t_m $op rhs.$rhs_m,)*
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_ops_self {
+    ($op_ty:ident, $op_func:ident, $op:tt, $t:ident{$($m:ident),*}) => {
+        impl_ops_element!($op_ty, $op_func, $op, $t{$($m),*}, $t<T>{$($m),*});
+    };
+}
+
+macro_rules! impl_ops_scalar {
+    ($op_ty:ident<$rhs:ident>, $op_func:ident, $op:tt, $t:ident{$($m:ident),*}) => {
+        impl<T: Unit> ops::$op_ty<$rhs> for $t<T> {
+            type Output = Self;
+
+            fn $op_func(self, rhs: $rhs) -> Self::Output {
+                Self {
+                    $($m: self.$m $op rhs,)*
+                }
             }
         }
     };
 }
 
 macro_rules! define_vector_struct {
-    ($(#[doc=$doc:expr])? $(#[derive($($derive:ident),*)])? $t:ident{$($m:ident),*}) => {
+    ($(#[doc=$doc:expr])?  $t:ident{$($m:ident),*}) => {
         $(#[doc=$doc])?
-        $(#[derive($($derive),*)])?
+        #[derive(Clone, Copy, Debug)]
         pub struct $t<T: Unit> {
             $(pub $m: T,)*
         }
-    };
-}
 
-macro_rules! define_vector_fn_new {
-    ($t:ident{$($m:ident),*}) => {
-        pub const fn new($($m: T,)*) -> Self {
-            Self {
-                $($m,)*
+        impl<T: Unit> $t<T> {
+            pub const fn new($($m: T,)*) -> Self {
+                Self {
+                    $($m,)*
+                }
             }
         }
-    };
-}
 
-macro_rules! define_vector_fn_one {
-    ($t:ident{$($m:ident),*}) => {
-        pub fn one() -> Self {
-            Self {
-                $($m: T::one(),)*
+        impl<T: Unit + PartialEq> PartialEq for $t<T> {
+            fn eq(&self, other: &Self) -> bool {
+                $(self.$m == other.$m)&&*
             }
         }
+
+        impl_ops_self!(Add, add, +, $t{$($m),*});
+        impl_ops_self!(Sub, sub, -, $t{$($m),*});
+        impl_ops_scalar!(Mul<T>, mul, *, $t{$($m),*});
+        impl_ops_scalar!(Div<T>, div, /, $t{$($m),*});
     };
 }
 
 macro_rules! define_offset {
     ($(#[doc=$doc:expr])? $t:ident{$($m:ident),*}) => {
-        define_vector_struct!($(#[doc=$doc])? #[derive(Clone, Copy, Debug, Default)] $t{$($m),*});
+        define_vector_struct!($(#[doc=$doc])? $t{$($m),*});
 
-        impl<T: Unit> $t<T> {
-            define_vector_fn_new!($t{$($m),*});
+        impl<T: Unit> Default for $t<T> {
+            fn default() -> Self {
+                Self {
+                    $($m: Default::default(),)*
+                }
+            }
         }
 
-        impl_partial_eq_vector!($t{$($m),*});
+        impl<T: Unit + ops::Neg<Output = T>> ops::Neg for $t<T> {
+            type Output = Self;
+
+            fn neg(self) -> Self::Output {
+                Self {
+                    $($m: -self.$m,)*
+                }
+            }
+        }
     };
 }
 
 macro_rules! define_extent {
     ($(#[doc=$doc:expr])? $t:ident{$($m:ident),*}) => {
-        define_vector_struct!($(#[doc=$doc])? #[derive(Clone, Copy, Debug)] $t{$($m),*});
+        define_vector_struct!($(#[doc=$doc])? $t{$($m),*});
 
         impl<T: Unit> $t<T> {
-            define_vector_fn_new!($t{$($m),*});
-            define_vector_fn_one!($t{$($m),*});
+            pub fn one() -> Self {
+                Self {
+                    $($m: T::one(),)*
+                }
+            }
+
             pub fn is_valid(&self) -> bool {
                 $(self.$m > T::zero())&&*
             }
@@ -93,12 +132,22 @@ macro_rules! define_extent {
                 Self::one()
             }
         }
-
-        impl_partial_eq_vector!($t{$($m),*});
     };
 }
 
-pub trait Unit: Copy + Default + PartialOrd {
+pub trait Unit:
+    Copy
+    + Default
+    + PartialOrd
+    + ops::Add<Self, Output = Self>
+    + ops::AddAssign<Self>
+    + ops::Sub<Self, Output = Self>
+    + ops::SubAssign<Self>
+    + ops::Mul<Self, Output = Self>
+    + ops::MulAssign<Self>
+    + ops::Div<Self, Output = Self>
+    + ops::DivAssign<Self>
+{
     fn one() -> Self;
     fn zero() -> Self {
         Self::default()
@@ -138,6 +187,9 @@ impl From<Offset2d<i32>> for PhysicalPosition<i32> {
     }
 }
 
+impl_ops_element!(Add, add, +, Offset2d { x, y }, Extent2d<T> { width, height });
+impl_ops_element!(Sub, sub, -, Offset2d { x, y }, Extent2d<T> { width, height });
+
 define_offset!(
     #[doc = "A 3d offset."]
     Offset3d { x, y, z }
@@ -162,6 +214,9 @@ impl From<Offset3d<u32>> for wgpu::Origin3d {
         }
     }
 }
+
+impl_ops_element!(Add, add, +, Offset3d { x, y, z }, Extent3d<T> { width, height, depth });
+impl_ops_element!(Sub, sub, -, Offset3d { x, y, z }, Extent3d<T> { width, height, depth });
 
 define_extent!(
     #[doc = "A 2d extent."]
@@ -188,6 +243,9 @@ impl From<Extent2d<u32>> for PhysicalSize<u32> {
         Self::new(value.width, value.height)
     }
 }
+
+impl_ops_element!(Add, add, +, Extent2d { width, height }, Offset2d<T> { x, y });
+impl_ops_element!(Sub, sub, -, Extent2d { width, height }, Offset2d<T> { x, y });
 
 define_extent!(
     #[doc = "A 3d extent."]
@@ -227,6 +285,9 @@ impl From<Extent3d<u32>> for wgpu::Extent3d {
         }
     }
 }
+
+impl_ops_element!(Add, add, +, Extent3d { width, height, depth }, Offset3d<T> { x, y, z });
+impl_ops_element!(Sub, sub, -, Extent3d { width, height, depth }, Offset3d<T> { x, y, z });
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]

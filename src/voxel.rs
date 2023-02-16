@@ -281,14 +281,7 @@ impl World {
             let face = Face::from_index(face_index);
 
             // get voxel adjacent to face
-            let other_position = {
-                let adjacent = face.get_voxel_normal();
-                Offset3d::new(
-                    position.x + adjacent.x,
-                    position.y + adjacent.y,
-                    position.z + adjacent.z,
-                )
-            };
+            let other_position = position + face.get_voxel_normal();
             let Some(other_index) = self.get_voxel_index(other_position) else {
                 self.voxel_data[target_index].faces.insert(Faces::from(face));
                 continue;

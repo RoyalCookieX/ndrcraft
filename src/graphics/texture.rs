@@ -196,11 +196,7 @@ impl Texture {
         if !size.is_valid() {
             return Err(Error::SizeInvalid);
         };
-        let origin_size = Extent3d::new(
-            origin.x + size.width,
-            origin.y + size.height,
-            origin.z + size.depth,
-        );
+        let origin_size = size + origin;
         if origin_size.width > texture_size.width
             || origin_size.height > texture_size.height
             || origin_size.depth > texture_size.depth
