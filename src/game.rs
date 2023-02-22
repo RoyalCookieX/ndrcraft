@@ -1,4 +1,9 @@
-use crate::{graphics, impl_from_error, input, performance, types::*, voxel, Controller, Voxel};
+use crate::{
+    graphics::{self, mesh},
+    impl_from_error, input, performance,
+    types::*,
+    voxel, Controller, Voxel,
+};
 use std::time;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -122,9 +127,9 @@ impl Game {
 
     pub fn run(mut self) -> Result<(), Error> {
         #[inline]
-        fn get_projection(size: Extent2d<u32>) -> graphics::mesh::Projection {
+        fn get_projection(size: Extent2d<u32>) -> mesh::Projection {
             let aspect = size.width as f32 / size.height as f32;
-            graphics::mesh::Projection::new_perspective(aspect, Deg(70.0), 0.0001, 100.0)
+            mesh::Projection::new_perspective(aspect, Deg(70.0), 0.0001, 100.0)
         }
 
         // create event_loop and window from settings
@@ -164,9 +169,9 @@ impl Game {
         );
 
         // create renderables
-        let material = graphics::Material {
-            blend: graphics::material::BlendMode::Opaque,
-            cull: graphics::material::CullMode::Back,
+        let material = mesh::Material {
+            blend: mesh::BlendMode::Opaque,
+            cull: Some(mesh::CullMode::Back),
         };
 
         // timekeeping data (delta time, frame count)

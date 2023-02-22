@@ -1,6 +1,4 @@
-use super::{
-    material, texture, Context, DrawCommand, DrawCommandList, Material, TargetFormat, Texture,
-};
+use super::{texture, Context, DrawCommand, DrawCommandList, TargetFormat, Texture};
 use crate::{ByteArray, Bytes, Color, Deg, Matrix4, SquareMatrix, Vector2, Vector3, Zero};
 use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
@@ -33,6 +31,23 @@ impl Default for Vertex {
 }
 
 unsafe impl Bytes for Vertex {}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BlendMode {
+    Opaque,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CullMode {
+    Front,
+    Back,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Material {
+    pub blend: BlendMode,
+    pub cull: Option<CullMode>,
+}
 
 #[derive(Debug)]
 pub struct Submesh {
@@ -446,9 +461,9 @@ impl Renderer {
                 view_dimension,
             };
             let cull_mode = match material.cull {
-                material::CullMode::None => None,
-                material::CullMode::Front => Some(wgpu::Face::Front),
-                material::CullMode::Back => Some(wgpu::Face::Back),
+                None => None,
+                Some(CullMode::Front) => Some(wgpu::Face::Front),
+                Some(CullMode::Back) => Some(wgpu::Face::Back),
             };
             let depth_stencil =
                 self.target_format
@@ -462,7 +477,7 @@ impl Renderer {
                     });
             self.pipelines.entry(pipeline_index).or_insert_with(|| {
                     let blend = match material.blend {
-                        material::BlendMode::Opaque => wgpu::BlendState::REPLACE,
+                        BlendMode::Opaque => wgpu::BlendState::REPLACE,
                     };
                     let pipeline_layout =
                         self.device

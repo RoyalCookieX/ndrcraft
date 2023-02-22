@@ -1,27 +1,7 @@
-pub mod material {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum BlendMode {
-        Opaque,
-    }
-
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum CullMode {
-        None,
-        Front,
-        Back,
-    }
-
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct Material {
-        pub blend: BlendMode,
-        pub cull: CullMode,
-    }
-}
 pub mod mesh;
 pub mod render_target;
 pub mod texture;
 
-pub use material::Material;
 pub use mesh::Mesh;
 pub use render_target::RenderTarget;
 pub use texture::Texture;
