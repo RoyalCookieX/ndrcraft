@@ -1,4 +1,11 @@
-use crate::{graphics, impl_from_error, Color, Extent2d, Extent3d, Offset3d, Vector2, Vector3};
+use crate::{
+    graphics::{
+        self,
+        mesh::{self, Mesh},
+        texture::{self, Texture},
+    },
+    impl_from_error, Color, Extent2d, Extent3d, Offset3d, Vector2, Vector3,
+};
 use bitflags::bitflags;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -181,19 +188,19 @@ pub enum WorldError {
     TileIndexInvalid(u32),
     DataInvalid,
     Graphics(graphics::Error),
-    Texture(graphics::texture::Error),
+    Texture(texture::Error),
 }
 
 impl_from_error!(graphics::Error, WorldError, Graphics);
-impl_from_error!(graphics::texture::Error, WorldError, Texture);
+impl_from_error!(texture::Error, WorldError, Texture);
 
 pub struct World {
     size: Extent3d<u32>,
     origin_offset: Offset3d<i32>,
     voxel_data: Vec<VoxelData>,
     max_tiles: u32,
-    mesh: graphics::Mesh,
-    texture: graphics::Texture,
+    mesh: Mesh,
+    texture: Texture,
 }
 
 impl World {
@@ -217,17 +224,17 @@ impl World {
         let voxel_data =
             vec![VoxelData::default(); (size.width * size.height * size.depth) as usize];
         let mesh = graphics.create_mesh(&[], &[]);
-        let texture_size = graphics::texture::Size::D2(Extent2d::new(
+        let texture_size = texture::Size::D2(Extent2d::new(
             Self::TEXTURE_SIZE.width * max_tiles,
             Self::TEXTURE_SIZE.height,
         ));
         let texture = graphics
             .create_texture(
                 texture_size,
-                graphics::texture::Format::Rgba8Unorm,
-                Some(graphics::texture::Sampler::new(
-                    graphics::texture::FilterMode::Nearest,
-                    graphics::texture::AddressMode::ClampToEdge,
+                texture::Format::Rgba8Unorm,
+                Some(texture::Sampler::new(
+                    texture::FilterMode::Nearest,
+                    texture::AddressMode::ClampToEdge,
                 )),
                 None,
             )
@@ -246,11 +253,11 @@ impl World {
         self.size
     }
 
-    pub fn mesh(&self) -> &graphics::Mesh {
+    pub fn mesh(&self) -> &Mesh {
         &self.mesh
     }
 
-    pub fn texture(&self) -> &graphics::Texture {
+    pub fn texture(&self) -> &Texture {
         &self.texture
     }
 
@@ -339,7 +346,7 @@ impl World {
         self.mesh.vertices.clear();
         self.mesh.submeshes.clear();
         let mut vertices = Vec::new();
-        let mut submesh = graphics::mesh::Submesh::new(&[]);
+        let mut submesh = mesh::Submesh::new(&[]);
         for (voxel_position, voxel_data) in self.iter() {
             match voxel_data.voxel {
                 Voxel::Void => continue,
@@ -370,7 +377,7 @@ impl World {
                                         (tile_index as f32 + uv.x) / self.max_tiles as f32,
                                         uv.y,
                                     );
-                                    graphics::mesh::Vertex::new(position, color, uv)
+                                    mesh::Vertex::new(position, color, uv)
                                 }),
                         );
                         submesh.indices.extend(indices.iter());

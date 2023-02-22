@@ -296,7 +296,7 @@ impl Game {
                 log_on_err!(mesh_renderer.draw_mesh(
                     Matrix4::identity(),
                     self.world.mesh(),
-                    &[graphics::mesh::MaterialTexture {
+                    &[mesh::MaterialTexture {
                         material,
                         texture: Some(self.world.texture()),
                     }],
