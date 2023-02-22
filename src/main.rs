@@ -1,6 +1,8 @@
 mod controller;
 mod game;
 mod graphics;
+mod input;
+mod performance;
 mod types;
 mod voxel;
 

@@ -1,4 +1,4 @@
-use crate::{graphics, impl_from_error, types::*, voxel, Controller, Voxel};
+use crate::{graphics, impl_from_error, input, performance, types::*, voxel, Controller, Voxel};
 use std::time;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -27,55 +27,6 @@ pub struct Settings {
     pub vsync: bool,
 
     pub world_size: Extent3d<u32>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct InputAxis {
-    pub negative: bool,
-    pub positive: bool,
-}
-
-impl InputAxis {
-    fn get_value(&self) -> Option<f32> {
-        if !(self.negative ^ self.positive) {
-            return None;
-        }
-        let negative_value = if self.negative { -1.0 } else { 0.0 };
-        let positive_value = if self.positive { 1.0 } else { 0.0 };
-        Some(negative_value + positive_value)
-    }
-}
-
-macro_rules! timer {
-    ($name:expr => { $($expr:tt)* }) => {
-        {
-            #[allow(non_snake_case)]
-            let _scoped_timer_ = ScopedTimer::new($name);
-            $($expr)?
-        }
-    };
-}
-
-#[derive(Debug)]
-struct ScopedTimer {
-    name: String,
-    start: time::Instant,
-}
-
-impl ScopedTimer {
-    pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_owned(),
-            start: time::Instant::now(),
-        }
-    }
-}
-
-impl Drop for ScopedTimer {
-    fn drop(&mut self) {
-        let duration = self.start.elapsed();
-        log::info!("{} -> {:.2}s", self.name, duration.as_secs_f32());
-    }
 }
 
 #[derive(Debug)]
@@ -118,14 +69,16 @@ impl Game {
         world.set_voxel_texture(1, voxel::TextureLayout::Single, voxel_1.as_bytes())?;
         world.set_voxel_texture(2, voxel::TextureLayout::Single, voxel_2.as_bytes())?;
 
-        timer!("Generating world" => {
+        {
+            performance::ScopedTimer::new("Generating world");
             let width = (world.size().width / 2) as i32;
             let height = (world.size().height / 2) as i32;
             let depth = (world.size().depth / 2) as i32;
             for z in -width..width {
                 for y in -height..=0 {
                     for x in -depth..depth {
-                        let threshold = (x as f32 * 0.12).sin() * 1.2 + (z as f32 * 0.05).cos() * 0.5;
+                        let threshold =
+                            (x as f32 * 0.12).sin() * 1.2 + (z as f32 * 0.05).cos() * 0.5;
                         if y as f32 > threshold {
                             continue;
                         }
@@ -153,11 +106,11 @@ impl Game {
             if let Some(_) = world.get_voxel(void_pos) {
                 world.set_voxel(void_pos, Voxel::Void)?;
             }
-        });
-
-        timer!("Genetating world mesh" => {
+        }
+        {
+            performance::ScopedTimer::new("Generating world mesh");
             world.generate_mesh();
-        });
+        }
         let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(0.0), Deg(-30.0));
         Ok(Self {
             settings,
@@ -228,9 +181,9 @@ impl Game {
         let lateral_speed = 10.0;
         let vertical_speed = 10.0;
         let look_speed = Vector2::new(0.2, 0.2);
-        let mut right_axis = InputAxis::default();
-        let mut forward_axis = InputAxis::default();
-        let mut up_axis = InputAxis::default();
+        let mut right_axis = input::Axis::default();
+        let mut forward_axis = input::Axis::default();
+        let mut up_axis = input::Axis::default();
         let mut look_delta = Vector2::new(0.0, 0.0);
 
         event_loop.run(move |event, _, flow| match event {
