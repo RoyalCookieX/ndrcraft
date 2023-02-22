@@ -22,8 +22,8 @@ pub enum WindowMode {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Settings {
-    pub window_mode: WindowMode,
+pub struct Descriptor {
+    pub window: WindowMode,
     pub vsync: bool,
 
     pub world_size: Extent3d<u32>,
@@ -40,7 +40,7 @@ impl_from_error!(graphics::Error, Error, Graphics);
 impl_from_error!(voxel::WorldError, Error, World);
 
 pub struct Game {
-    settings: Settings,
+    settings: Descriptor,
     graphics: graphics::Context,
     world: voxel::World,
     controller: Controller,
@@ -49,9 +49,9 @@ pub struct Game {
 impl Game {
     const TITLE: &'static str = "NdrCraft";
 
-    pub fn new(settings: Settings) -> Result<Self, Error> {
+    pub fn new(descriptor: Descriptor) -> Result<Self, Error> {
         let graphics = graphics::Context::new()?;
-        let mut world = voxel::World::new(&graphics, settings.world_size, 3)?;
+        let mut world = voxel::World::new(&graphics, descriptor.world_size, 3)?;
 
         let voxel_0 = image::io::Reader::open("assets/textures/voxel_0.png")
             .unwrap()
@@ -113,7 +113,7 @@ impl Game {
         }
         let controller = Controller::new(Vector3::new(0.0, 2.0, 3.0), Deg(0.0), Deg(-30.0));
         Ok(Self {
-            settings,
+            settings: descriptor,
             graphics,
             world,
             controller,
@@ -131,7 +131,7 @@ impl Game {
         let event_loop = EventLoop::new();
         let window = {
             let mut builder = WindowBuilder::new().with_title(Self::TITLE);
-            builder = match self.settings.window_mode {
+            builder = match self.settings.window {
                 WindowMode::Windowed(size) => builder.with_inner_size(PhysicalSize::from(size)),
             };
             builder.build(&event_loop)
@@ -140,9 +140,9 @@ impl Game {
         window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
         window.set_cursor_visible(false);
 
-        // center window to monitor if `settings.window_mode` is `Windowed`
+        // center window to monitor if the window mode is windowed
         if let (WindowMode::Windowed(_), Some(monitor)) =
-            (self.settings.window_mode, event_loop.primary_monitor())
+            (self.settings.window, event_loop.primary_monitor())
         {
             let monitor_size = monitor.size();
             let window_size = window.outer_size();
@@ -153,10 +153,9 @@ impl Game {
         }
 
         // create render target
-        let mut render_target = self
-            .graphics
-            .create_render_target(&window, self.settings.vsync, true)
-            .map_err(|error| Error::Graphics(error.into()))?;
+        let mut render_target =
+            self.graphics
+                .create_render_target(&window, self.settings.vsync, true)?;
 
         // create renderers
         let mut mesh_renderer = self.graphics.create_mesh_renderer(

@@ -18,8 +18,8 @@ fn main() {
         .filter(Some("wgpu_core"), log::LevelFilter::Warn)
         .init();
 
-    let game = Game::new(game::Settings {
-        window_mode: game::WindowMode::Windowed(Extent2d::new(1424, 720)),
+    let game = Game::new(game::Descriptor {
+        window: game::WindowMode::Windowed(Extent2d::new(1424, 720)),
         vsync: false,
         world_size: Extent3d::new(100, 12, 100),
     })
