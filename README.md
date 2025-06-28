@@ -4,7 +4,7 @@ This is my attempt at creating a voxel game using Rust.
 ## Features:
 - Textured voxels
 - First-person camera movement
-- Occlusion culling
+- Face culling
 
 ## Camera Controls:
 - A/D: Move Left & Right
